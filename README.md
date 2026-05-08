@@ -1,5 +1,8 @@
 # vicsek-levy
 
+[![tests](https://github.com/yayayou47/vicsek-levy/actions/workflows/test.yml/badge.svg)](https://github.com/yayayou47/vicsek-levy/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Numerical experiments and figure pipeline for the manuscript
 
 > **α-stable angular noise reshapes the Vicsek flocking transition**
