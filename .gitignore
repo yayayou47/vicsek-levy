@@ -1,0 +1,36 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.cache/
+.hypothesis/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data backups
+*.npz.bak
+*.bak
+*~
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# manim render artefacts (kept out of repo; videos are not the deliverable)
+src/media/
+src/manim_cache/
+
+# Logs
+*.log
+logs/
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
