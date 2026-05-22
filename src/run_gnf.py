@@ -29,7 +29,7 @@ DATA.mkdir(exist_ok=True)
 
 def main():
     N, L, v0 = 2000, 30.0, 0.05            # density sigma = 2.22
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm = 2000
     n_meas = 6000
     n_skip = 50

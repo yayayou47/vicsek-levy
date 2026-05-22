@@ -35,7 +35,7 @@ def project_and_hist(x, y, theta_avg, L, n_bins):
 
 def main():
     N, L, v0 = 2000, 30.0, 0.05
-    R_r = 0.5
+    R_r = 0.45
     k_topo = 6
     n_warm = 2000
     n_meas = 4000
@@ -63,7 +63,7 @@ def main():
         for is_, seed in enumerate(seeds):
             p = TopoParams(
                 N=N, L=L, v0=v0, R_r=R_r, k=k_topo,
-                beta=30.0, eta=float(eta),
+                eta=float(eta),
                 alpha=float(alpha), seed=seed,
             )
             sim = TopoVicsek(p)

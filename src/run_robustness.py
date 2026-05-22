@@ -1,13 +1,15 @@
 """
 Phase-diagram robustness across the other "fixed" parameters of the
-zonal Vicsek-Couzin model: speed v_0, blind angle beta, density sigma.
+two-zone Vicsek model: speed v_0 and density sigma. (The blind-angle
+sweep has been dropped with the blind sector itself; the R_r scan
+that fixed R_r = 0.45 lives in run_noblind_scan.py.)
 Per-seed measurements are kept so SEM bands can be drawn downstream.
 5 seeds per (alpha, axis-value, eta) point, parallelised via
 ProcessPoolExecutor.
 
 Output: data/robustness.npz
-   v0_grid, beta_grid, sigma_grid
-   phi_v0[a, v, e, s], phi_beta[a, b, e, s], phi_sigma[a, sg, e, s]
+   v0_grid, sigma_grid
+   phi_v0[a, v, e, s], phi_sigma[a, sg, e, s]
    etas, alphas, seeds, base_params
 """
 from __future__ import annotations
@@ -32,8 +34,6 @@ def _measure_phi(args):
     kwargs = dict(base)
     if axis_name == "v0":
         kwargs["v0"] = float(val)
-    elif axis_name == "beta":
-        kwargs["beta"] = float(val)
     elif axis_name == "sigma":
         sigma = float(val)
         kwargs["N"] = int(round(sigma * L * L))
@@ -77,7 +77,7 @@ def _sweep(axis_name, grid, alphas, etas, seeds, base, n_warm, n_meas, L,
 
 def main():
     L = 15.0
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm, n_meas = 1200, 800
     seeds = [11, 23, 41, 67, 89]
 
@@ -85,29 +85,26 @@ def main():
     etas = np.array([0.02, 0.05, 0.10, 0.15, 0.20, 0.30])
 
     v0_grid = np.array([0.02, 0.05, 0.10, 0.20])
-    beta_grid = np.array([0.0, 30.0, 60.0, 120.0])
     sigma_grid = np.array([1.5, 2.22, 3.0, 4.5])
 
     sigma0 = 2.22
     N0 = int(round(sigma0 * L * L))
-    base = dict(N=N0, L=L, v0=0.05, R_r=R_r, R_a=R_a, beta=30.0)
+    base = dict(N=N0, L=L, v0=0.05, R_r=R_r, R_a=R_a)
 
     n_workers = 8
 
     phi_v0 = _sweep("v0", v0_grid, alphas, etas, seeds, base,
                     n_warm, n_meas, L, n_workers)
-    phi_beta = _sweep("beta", beta_grid, alphas, etas, seeds, base,
-                      n_warm, n_meas, L, n_workers)
     phi_sigma = _sweep("sigma", sigma_grid, alphas, etas, seeds, base,
                        n_warm, n_meas, L, n_workers)
 
     np.savez_compressed(
         DATA / "robustness.npz",
-        v0_grid=v0_grid, beta_grid=beta_grid, sigma_grid=sigma_grid,
-        phi_v0=phi_v0, phi_beta=phi_beta, phi_sigma=phi_sigma,
+        v0_grid=v0_grid, sigma_grid=sigma_grid,
+        phi_v0=phi_v0, phi_sigma=phi_sigma,
         etas=etas, alphas=alphas, seeds=np.array(seeds),
         base_params=np.array(
-            [N0, L, 0.05, R_r, R_a, 30.0, n_warm, n_meas,
+            [N0, L, 0.05, R_r, R_a, n_warm, n_meas,
              len(seeds)], dtype=float),
     )
     print("saved:", DATA / "robustness.npz")

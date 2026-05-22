@@ -15,12 +15,14 @@ from vicsek import Vicsek, VicsekParams
 
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE.parent / "data"
+V1_ROOT = HERE.parent.parent if HERE.parent.name == "notes" else HERE.parent
+DATA = V1_ROOT / "data"
+DATA.mkdir(exist_ok=True)
 
 
 def main():
     N, L, v0 = 500, 15.0, 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     eta_max = 0.40
     T_relax = 800
     T_up = 32000

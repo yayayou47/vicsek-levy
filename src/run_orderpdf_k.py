@@ -42,7 +42,7 @@ def main():
     sigma = 2.22
     N = int(round(sigma * L * L))
     v0 = 0.05
-    R_r = 0.5
+    R_r = 0.45
     n_warm = 2000
     n_meas = 8000
     seeds = [11, 23, 41]
@@ -63,7 +63,7 @@ def main():
         for seed in seeds:
             p = TopoParams(
                 N=N, L=L, v0=v0, R_r=R_r, k=int(k_topo),
-                beta=30.0, eta=float(eta),
+                eta=float(eta),
                 alpha=1.0, seed=seed,
             )
             traj_list.append(trace_phi(p, n_warm, n_meas))

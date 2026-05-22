@@ -30,7 +30,7 @@ def _measure(args):
     L, N, alpha, eta, seed, v0, R_r, k_topo, n_warm, n_meas = args
     p = TopoParams(
         N=int(N), L=float(L), v0=v0, R_r=R_r, k=k_topo,
-        beta=30.0, eta=float(eta), alpha=float(alpha), seed=int(seed),
+        eta=float(eta), alpha=float(alpha), seed=int(seed),
     )
     sim = TopoVicsek(p)
     sim.theta[:] = 0.0
@@ -53,7 +53,7 @@ def main():
     sigma = 2.22
     Ls = np.array([15.0, 22.0, 30.0, 45.0])
     v0 = 0.05
-    R_r = 0.5
+    R_r = 0.45
     k_topo = 6
     n_warm, n_meas = 1200, 800
     seeds = [11, 23, 41, 67, 89]

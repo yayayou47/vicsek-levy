@@ -38,7 +38,7 @@ def main():
     sigma = 2.22
     Ls = np.array([15.0, 30.0])
     v0 = 0.05
-    R_r = 0.5
+    R_r = 0.45
     n_warm, n_meas = 1200, 800
     seeds = [11, 23]
 
@@ -61,7 +61,7 @@ def main():
                     p = TopoParams(
                         N=int(Ns[il]), L=float(L), v0=v0,
                         R_r=R_r, k=int(k_topo),
-                        beta=30.0, eta=float(eta),
+                        eta=float(eta),
                         alpha=1.0, seed=seed,
                     )
                     ph, ch = measure(p, n_warm, n_meas)

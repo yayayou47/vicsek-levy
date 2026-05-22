@@ -52,7 +52,7 @@ def main():
     Ls = np.array([15.0, 22.0, 30.0, 45.0])
     Ns = (sigma * Ls**2).round().astype(int)
     v0 = 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm, n_meas = 1500, 1000
     seeds = np.array([0, 1, 2, 3, 4])
     etas = np.array([0.02, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50])
@@ -73,7 +73,7 @@ def main():
                 for isd, sd in enumerate(seeds):
                     p = AdaptiveParams(
                         N=int(N), L=float(L), v0=v0, R_r=R_r, R_a=R_a,
-                        beta=30.0, eta=float(eta),
+                        eta=float(eta),
                         alpha_min=a_min, alpha_max=a_max,
                         n_star=3.0, slope=2.0, seed=int(sd),
                     )

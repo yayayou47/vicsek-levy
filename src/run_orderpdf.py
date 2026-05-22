@@ -44,7 +44,7 @@ def main():
     sigma = 2.22
     N = int(round(sigma * L * L))
     v0 = 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     k_topo = 6
     n_warm = 2000
     n_meas = 8000

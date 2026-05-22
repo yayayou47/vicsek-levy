@@ -20,8 +20,9 @@ from vicsek import Vicsek, VicsekParams
 
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE.parent / "data"
-FIG = HERE.parent / "figures"
+V1_ROOT = HERE.parent.parent if HERE.parent.name == "notes" else HERE.parent
+DATA = V1_ROOT / "data"
+FIG = V1_ROOT / "figures"
 FIG.mkdir(exist_ok=True)
 
 
@@ -36,44 +37,9 @@ def _save(fig, name: str):
     print(f"saved: {out}")
 
 
-def fig_phase(npz_path: Path):
-    z = np.load(npz_path)
-    alphas = z["alphas"]
-    etas = z["etas"]
-
-    fig, ax = plt.subplots(figsize=style.SINGLE_COL)
-    for ia, a in enumerate(alphas):
-        ax.plot(etas, z["phi_mean"][ia], "o-", label=fr"$\alpha={a:.2f}$")
-    ax.set_xlabel(r"noise scale $\eta$")
-    ax.set_ylabel(r"polarisation $\langle\varphi\rangle$")
-    ax.set_ylim(-0.02, 1.02)
-    ax.legend()
-    fig.tight_layout()
-    _save(fig, "fig_order_param.pdf")
-
-    fig, ax = plt.subplots(figsize=style.SINGLE_COL)
-    for ia, a in enumerate(alphas):
-        ax.plot(etas, z["chi"][ia], "s-", label=fr"$\alpha={a:.2f}$")
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel(r"$\chi = N\,\mathrm{Var}(\varphi)$")
-    ax.legend()
-    fig.tight_layout()
-    _save(fig, "fig_susceptibility.pdf")
-
-    fig, ax = plt.subplots(figsize=style.SINGLE_COL)
-    for ia, a in enumerate(alphas):
-        ax.plot(etas, z["binder"][ia], "d-", label=fr"$\alpha={a:.2f}$")
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel(r"Binder cumulant $U_4$")
-    ax.axhline(2.0 / 3.0, ls=":", c="grey", lw=0.8)
-    ax.legend()
-    fig.tight_layout()
-    _save(fig, "fig_binder.pdf")
-
-
 def fig_noise_pdf():
     rng = np.random.default_rng(0)
-    fig, ax = plt.subplots(figsize=style.SINGLE_COL)
+    fig, ax = plt.subplots(figsize=(5.4, 4.4))
     bins = np.linspace(-6, 6, 200)
     centers = 0.5 * (bins[1:] + bins[:-1])
     for a, ls in zip([2.0, 1.5, 1.0, 0.7], ["-", "--", "-.", ":"]):
@@ -85,7 +51,9 @@ def fig_noise_pdf():
     ax.set_ylabel(r"pdf $p_\alpha(\xi)$")
     ax.set_ylim(1e-4, 1.0)
     ax.legend()
-    fig.tight_layout()
+    fig.suptitle(r"(b) Symmetric $\alpha$-stable noise pdfs",
+                 fontsize=13.5, y=0.97)
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
     _save(fig, "fig_noise_pdf.pdf")
 
 
@@ -102,148 +70,101 @@ def _run_for_snapshot(alpha: float, eta: float, N: int, L: float,
     return sim, phi_samples
 
 
-def fig_fss(npz_path: Path):
-    """Finite-size scaling of <phi>, chi, U4 vs eta for several L,
-    one row per Levy index alpha.
-    """
-    z = np.load(npz_path)
-    Ls = z["Ls"]
-    alphas = z["alphas"]
-    etas = z["etas"]
-    phi = z["phi_mean"]      # (n_L, n_alpha, n_eta)
-    chi = z["chi"]
-    U4 = z["U4"]
-
-    n_alpha = len(alphas)
-    fig, axes = plt.subplots(n_alpha, 3,
-                             figsize=(style.DOUBLE_COL[0], 4.0),
-                             sharex=True)
-    cmap = plt.get_cmap("plasma")
-    colors = [cmap(0.15 + 0.7 * i / max(1, len(Ls) - 1))
-              for i in range(len(Ls))]
-
-    for ia, alpha_val in enumerate(alphas):
-        ax_phi, ax_chi, ax_U4 = axes[ia]
-        for iL, L in enumerate(Ls):
-            label = fr"$L={int(L)}$" if ia == 0 else None
-            ax_phi.plot(etas, phi[iL, ia], "o-", color=colors[iL],
-                        ms=3, lw=1.0, label=label)
-            ax_chi.plot(etas, chi[iL, ia], "s-", color=colors[iL],
-                        ms=3, lw=1.0)
-            ax_U4.plot(etas, U4[iL, ia], "d-", color=colors[iL],
-                       ms=3, lw=1.0)
-
-        ax_phi.set_ylim(-0.03, 1.05)
-        ax_phi.set_ylabel(r"$\langle\varphi\rangle$")
-        ax_chi.set_ylabel(r"$\chi = N\,\mathrm{Var}(\varphi)$")
-        ax_U4.set_ylabel(r"$U_4$")
-        ax_U4.axhline(2.0 / 3.0, ls=":", c="grey", lw=0.7)
-        for ax in (ax_phi, ax_chi, ax_U4):
-            ax.tick_params(labelsize=7)
-        ax_phi.text(0.04, 0.92, fr"$\alpha={alpha_val:.1f}$",
-                    transform=ax_phi.transAxes, fontsize=9,
-                    fontweight="bold")
-
-    for ax in axes[-1]:
-        ax.set_xlabel(r"noise scale $\eta$")
-    axes[0, 0].legend(loc="upper right", fontsize=7, framealpha=0.9)
-
-    fig.tight_layout()
-    _save(fig, "fig_fss.pdf")
-
-
-def fig_clusters(npz_path: Path):
-    """Cluster-size distribution P(s) at one near-critical eta per alpha
-    (left panel) and largest-cluster fraction <s_max>/N vs eta (right).
-    """
-    z = np.load(npz_path)
-    alphas = z["alphas"]
-    etas = z["etas"]
-    hist_bins = z["hist_bins"]
-    hist = z["hist"]
-    smax_frac = z["smax_frac"]
-    centers = np.sqrt(hist_bins[:-1] * hist_bins[1:])
-    widths = np.diff(hist_bins)
-
-    fig, axes = plt.subplots(1, 2, figsize=(style.DOUBLE_COL[0], 2.6))
-    palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
-
-    near_crit = {1.0: 0.05, 1.5: 0.10, 2.0: 0.15}
-
-    # Panel (a): P(s) at near-critical eta.
-    ax = axes[0]
-    for ia, alpha_val in enumerate(alphas):
-        eta_t = near_crit[float(alpha_val)]
-        ie = int(np.argmin(np.abs(etas - eta_t)))
-        h = hist[ia, ie]
-        Ps = h / (h.sum() * widths)
-        ok = (h > 0) & (centers <= 200)
-        ax.loglog(centers[ok], Ps[ok], "o-",
-                  color=palette[ia], ms=4, lw=1.0,
-                  label=fr"$\alpha={alpha_val:.1f}, "
-                        fr"\eta={etas[ie]:.2f}$")
-    # Reference -tau power law for visual comparison.
-    ref = np.geomspace(2.0, 80.0, 50)
-    ax.loglog(ref, ref**-1.7 * 0.5, "k--", lw=0.7, alpha=0.7,
-              label=r"slope $-1.7$")
-    ax.set_xlabel(r"cluster size $s$")
-    ax.set_ylabel(r"$P(s)$")
-    ax.legend(fontsize=7)
-    ax.set_title("near-critical cluster distribution", fontsize=8)
-    axes[0].text(-0.18, 1.04, "(a)", transform=axes[0].transAxes,
-                 fontsize=10, fontweight="bold")
-
-    # Panel (b): <s_max>/N vs eta.
-    ax = axes[1]
-    for ia, alpha_val in enumerate(alphas):
-        ax.plot(etas, smax_frac[ia], "o-", color=palette[ia],
-                ms=4, lw=1.2,
-                label=fr"$\alpha={alpha_val:.1f}$")
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel(r"$\langle s_{\max}\rangle / N$")
-    ax.set_ylim(-0.02, 1.05)
-    ax.legend(fontsize=7)
-    ax.set_title("largest-cluster fraction", fontsize=8)
-    axes[1].text(-0.18, 1.04, "(b)", transform=axes[1].transAxes,
-                 fontsize=10, fontweight="bold")
-
-    fig.tight_layout()
-    _save(fig, "fig_clusters.pdf")
-
-
 def fig_topological(npz_path: Path):
-    """phi(eta), chi(eta), U4(eta) for the topological variant at
-    several L per alpha, with seed-mean +/- SEM ribbons and a
-    bootstrap-CI chi_max(L) scaling panel."""
+    """phi(eta), chi(eta), U4(eta) for the topological variant on
+    the harmonised 7-size lever {15, 22, 30, 45, 64, 91, 128} and
+    3-alpha grid {1, 1.5, 2}. Base data has alphas in {1, 2} and
+    Ls in {15..45}; topo_fss_a15.npz supplies the alpha = 1.5 slice
+    over the small-L lever, and topo_L{64,91,128}_a3.npz extend
+    each in L (with topo_L64.npz fallback if the *_a3 variant is
+    absent)."""
     z = np.load(npz_path)
-    alphas = z["alphas"]
-    Ls = z["Ls"]
+    alphas = list(z["alphas"])
+    Ls = list(z["Ls"])
     etas = z["etas"]
     phi = z["phi"]
     chi = z["chi"]
     binder = z["binder"]
-
-    # Backwards compat: data without a seed axis.
     if phi.ndim == 3:
-        phi = phi[..., None]
-        chi = chi[..., None]
-        binder = binder[..., None]
+        phi = phi[..., None]; chi = chi[..., None]; binder = binder[..., None]
     n_seeds = phi.shape[-1]
 
-    palette = {1.0: "#3aa040", 2.0: "#1f4ea1"}
-    n_L = len(Ls)
-    cmap_a1 = plt.cm.Greens(np.linspace(0.45, 0.95, n_L))
-    cmap_a2 = plt.cm.Blues(np.linspace(0.45, 0.95, n_L))
-    L_colors = {1.0: cmap_a1, 2.0: cmap_a2}
-    markers = ["o", "s", "D", "^", "v"]
+    # --- alpha = 1.5 slice for the small-L lever ---------------------
+    a15_path = npz_path.parent / "topo_fss_a15.npz"
+    if a15_path.exists():
+        zA = np.load(a15_path)
+        if list(zA["Ls"]) == Ls:
+            # (n_L, n_eta, n_seed) -> add as a new alpha axis (insert
+            # so the final alpha order is sorted ascending: 1, 1.5, 2).
+            n_use = min(n_seeds, zA["phi"].shape[-1])
+            phi = phi[..., :n_use]; chi = chi[..., :n_use]
+            binder = binder[..., :n_use]
+            new_phi = zA["phi"][None, :, :, :n_use]
+            new_chi = zA["chi"][None, :, :, :n_use]
+            new_U4 = zA["U4"][None, :, :, :n_use]
+            ins = next(i for i, a in enumerate(alphas) if a > 1.5)
+            alphas = alphas[:ins] + [1.5] + alphas[ins:]
+            phi = np.concatenate([phi[:ins], new_phi, phi[ins:]], axis=0)
+            chi = np.concatenate([chi[:ins], new_chi, chi[ins:]], axis=0)
+            binder = np.concatenate(
+                [binder[:ins], new_U4, binder[ins:]], axis=0)
+            n_seeds = n_use
 
-    fig, axes_grid = plt.subplots(2, 2, figsize=(style.DOUBLE_COL[0], 5.0))
-    axes = axes_grid.flatten()
+    # --- L extensions: prefer the 3-alpha files, fall back to 2-alpha
+    for L_ext in (64, 91, 128):
+        p3 = npz_path.parent / f"topo_L{L_ext}_a3.npz"
+        p2 = npz_path.parent / f"topo_L{L_ext}.npz"
+        p = p3 if p3.exists() else (p2 if p2.exists() else None)
+        if p is None:
+            continue
+        zE = np.load(p)
+        ext_alphas = list(zE["alphas"])
+        n_use = min(n_seeds, zE["phi"].shape[-1])
+        phi = phi[..., :n_use]; chi = chi[..., :n_use]
+        binder = binder[..., :n_use]
+        # zE arrays: (alpha, eta, seed); need (alpha, 1, eta, seed)
+        # then concat along L axis. Map to the global alpha order.
+        e_phi = np.full((len(alphas), 1, len(etas), n_use), np.nan)
+        e_chi = np.full_like(e_phi, np.nan)
+        e_U4 = np.full_like(e_phi, np.nan)
+        u4_key = "U4" if "U4" in zE.files else "binder"
+        for ia_e, a_e in enumerate(ext_alphas):
+            if a_e in alphas:
+                ia = alphas.index(a_e)
+                e_phi[ia, 0] = zE["phi"][ia_e, :, :n_use]
+                e_chi[ia, 0] = zE["chi"][ia_e, :, :n_use]
+                e_U4[ia, 0] = zE[u4_key][ia_e, :, :n_use]
+        Ls.append(float(zE["L"]))
+        phi = np.concatenate([phi, e_phi], axis=1)
+        chi = np.concatenate([chi, e_chi], axis=1)
+        binder = np.concatenate([binder, e_U4], axis=1)
+        n_seeds = n_use
+
+    alphas = np.array(alphas)
+    Ls = np.array(Ls)
+
+    palette = {1.0: "#3aa040", 1.5: "#c2643a", 2.0: "#1f4ea1"}
+    n_L = len(Ls)
+    cmap_a1 = plt.cm.Greens(np.linspace(0.35, 0.95, n_L))
+    cmap_a15 = plt.cm.Oranges(np.linspace(0.35, 0.95, n_L))
+    cmap_a2 = plt.cm.Blues(np.linspace(0.35, 0.95, n_L))
+    L_colors = {1.0: cmap_a1, 1.5: cmap_a15, 2.0: cmap_a2}
+    markers = ["o", "s", "D", "^", "v", "P", "X"]
+
+    fig = plt.figure(figsize=(style.DOUBLE_COL[0] * 1.25, 5.4))
+    gs = fig.add_gridspec(2, 3, width_ratios=[2.0, 2.0, 1.0])
+    ax_a = fig.add_subplot(gs[0, 0])
+    ax_b = fig.add_subplot(gs[0, 1])
+    ax_c = fig.add_subplot(gs[1, 0])
+    ax_d = fig.add_subplot(gs[1, 1])
+    ax_leg = fig.add_subplot(gs[:, 2])
+    ax_leg.axis("off")
+    axes = [ax_a, ax_b, ax_c, ax_d]
 
     panels = [
-        (axes[0], phi, r"$\langle\varphi\rangle$", "polar order"),
-        (axes[1], chi, r"$\chi$", "susceptibility"),
-        (axes[2], binder, r"$U_4$", "Binder cumulant"),
+        (ax_a, phi, r"$\langle\varphi\rangle$", "polar order"),
+        (ax_b, chi, r"$\chi$", "susceptibility"),
+        (ax_c, binder, r"$U_4$", "Binder cumulant"),
     ]
     for ax, arr, ylabel, title in panels:
         for ia, a in enumerate(alphas):
@@ -253,21 +174,32 @@ def fig_topological(npz_path: Path):
                 col = L_colors[float(a)][il]
                 ax.plot(etas, m,
                         marker=markers[il % len(markers)], ls="-",
-                        color=col, ms=3.5, lw=0.9,
-                        label=fr"$\alpha={a:.0f},\,L={int(L)}$")
-                ax.fill_between(etas, m - se, m + se, color=col,
-                                alpha=0.18, lw=0)
+                        color=col, ms=4.5, lw=1.1,
+                        label=fr"$\alpha={a:g},\,L={int(L)}$")
+                ax.plot(etas, m - se, ls="--", color=col, lw=0.6,
+                        alpha=0.7)
+                ax.plot(etas, m + se, ls="--", color=col, lw=0.6,
+                        alpha=0.7)
         ax.set_xlabel(r"$\eta$")
         ax.set_ylabel(ylabel)
-        ax.set_title(title, fontsize=8)
+        ax.set_title(title)
         if title == "polar order":
             ax.set_ylim(-0.02, 1.02)
         if title == "Binder cumulant":
             ax.axhline(2.0 / 3.0, ls=":", c="grey", lw=0.7)
-    axes[0].legend(fontsize=5, loc="lower left", ncol=2)
+    # Shared (alpha, L) key, transferred out of panel (a) into the
+    # full-height right-hand panel.
+    handles, labels = ax_a.get_legend_handles_labels()
+    leg = ax_leg.legend(handles, labels, loc="center", fontsize=8,
+                        frameon=True, edgecolor="0.35", fancybox=False,
+                        ncol=1, handlelength=1.6, labelspacing=0.55,
+                        borderaxespad=0.0, borderpad=0.9,
+                        title=r"legend, panels (a)--(d)")
+    leg.get_title().set_fontsize(9)
+    leg.get_title().set_fontweight("bold")
 
     # Panel (d): chi_max(L) with bootstrap-CI slope.
-    ax = axes[3]
+    ax = ax_d
     rng = np.random.default_rng(0)
     n_boot = 2000
     for ia, a in enumerate(alphas):
@@ -286,7 +218,7 @@ def fig_topological(npz_path: Path):
         col = palette[float(a)]
         ax.errorbar(Ls, c_mean, yerr=c_se, fmt="o-", color=col,
                     ms=4, lw=1.1, capsize=3,
-                    label=fr"$\alpha={a:.0f}$: $L^{{{s_mean:.2f}\pm{s_se:.2f}}}$")
+                    label=fr"$\alpha={a:g}$: $L^{{{s_mean:.2f}\pm{s_se:.2f}}}$")
         Lf = np.linspace(Ls[0] * 0.95, Ls[-1] * 1.05, 50)
         b = np.polyfit(np.log(Ls), np.log(c_mean), 1)
         ax.plot(Lf, np.exp(b[1]) * Lf ** b[0], "--", color=col,
@@ -297,34 +229,34 @@ def fig_topological(npz_path: Path):
     ax.minorticks_off()
     ax.set_xlabel(r"$L$")
     ax.set_ylabel(r"$\chi_{\max}$")
-    ax.set_title("FSS of susceptibility", fontsize=8)
-    ax.legend(fontsize=7, loc="lower right")
+    ax.set_title("FSS of susceptibility")
+    ax.legend(loc="upper left", fontsize=7)
 
     for k, ax in enumerate(axes):
         ax.text(-0.18, 1.04, f"({chr(97+k)})", transform=ax.transAxes,
-                fontsize=10, fontweight="bold")
+                fontsize=11, fontweight="bold")
 
     fig.tight_layout()
     _save(fig, "fig_topological.pdf")
 
 
 def fig_robustness(npz_path: Path):
-    """Robustness of the phi(eta) curve under v_0, beta, sigma at
+    """Robustness of the phi(eta) curve under v_0 and sigma at
     alpha = 1 and 2. Each row is one axis, left column alpha=2, right
     column alpha=1. Mean across seeds with +/- SEM ribbons.
+    (The blind-angle row has been removed with the blind sector.)
     """
     z = np.load(npz_path)
     etas = z["etas"]
     alphas = z["alphas"]
     grids = {
         "v0": (z["v0_grid"], z["phi_v0"], r"$v_0$"),
-        "beta": (z["beta_grid"], z["phi_beta"], r"$\beta$ (deg)"),
         "sigma": (z["sigma_grid"], z["phi_sigma"], r"$\sigma$"),
     }
     # Detect per-seed shape (..., n_seeds); fall back to mean-only.
     has_seed_axis = next(iter(grids.values()))[1].ndim == 4
 
-    fig, axes = plt.subplots(3, 2, figsize=(style.DOUBLE_COL[0], 6.5),
+    fig, axes = plt.subplots(2, 2, figsize=(style.DOUBLE_COL[0], 4.6),
                              sharex=True, sharey=True)
     cmap = plt.cm.viridis
 
@@ -340,15 +272,17 @@ def fig_robustness(npz_path: Path):
                     se = arr.std(axis=-1) / max(1.0, np.sqrt(n_s))
                     ax.plot(etas, m, "o-", color=c, ms=3, lw=1.0,
                             label=f"{val:g}")
-                    ax.fill_between(etas, m - se, m + se, color=c,
-                                    alpha=0.18, lw=0)
+                    ax.plot(etas, m - se, ls="--", color=c, lw=0.6,
+                            alpha=0.7)
+                    ax.plot(etas, m + se, ls="--", color=c, lw=0.6,
+                            alpha=0.7)
                 else:
                     ax.plot(etas, phi[ja, ig], "o-",
                             color=c, ms=3, lw=1.0, label=f"{val:g}")
             if irow == 0:
-                ax.set_title(fr"$\alpha = {alpha_val:.1f}$", fontsize=8)
+                ax.set_title(fr"$\alpha = {alpha_val:.1f}$", fontsize=9)
             ax.set_ylim(-0.02, 1.02)
-            ax.legend(title=label, fontsize=6, title_fontsize=7,
+            ax.legend(title=label, fontsize=7, title_fontsize=7,
                       loc="upper right")
         axes[irow, 0].set_ylabel(r"$\langle\varphi\rangle$")
 
@@ -359,62 +293,14 @@ def fig_robustness(npz_path: Path):
     _save(fig, "fig_robustness.pdf")
 
 
-def fig_calibrated(npz_path: Path):
-    """Phase diagram in the calibrated noise V (circular variance).
-    Three panels: (a) eta_alpha(V) calibration curves, (b) phi(V),
-    (c) chi(V)."""
-    z = np.load(npz_path)
-    alphas = z["alphas"]
-    V = z["V_grid"]
-    eta_table = z["eta_table"]
-    phi = z["phi_mean"]
-    chi = z["chi"]
-
-    palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
-    fig, axes = plt.subplots(1, 3, figsize=(style.DOUBLE_COL[0], 2.6))
-
-    ax = axes[0]
-    for ia, a in enumerate(alphas):
-        ax.plot(V, eta_table[ia], "o-", color=palette[ia], ms=3, lw=1.0,
-                label=fr"$\alpha={a:.1f}$")
-    ax.set_xlabel(r"calibrated noise $V$")
-    ax.set_ylabel(r"$\eta_\alpha(V)$")
-    ax.set_yscale("log")
-    ax.legend(fontsize=7)
-    ax.set_title("noise calibration", fontsize=8)
-    axes[0].text(-0.18, 1.04, "(a)", transform=axes[0].transAxes,
-                 fontsize=10, fontweight="bold")
-
-    ax = axes[1]
-    for ia, a in enumerate(alphas):
-        ax.plot(V, phi[ia], "o-", color=palette[ia], ms=3, lw=1.0,
-                label=fr"$\alpha={a:.1f}$")
-    ax.set_xlabel(r"$V$")
-    ax.set_ylabel(r"$\langle\varphi\rangle$")
-    ax.set_ylim(-0.02, 1.02)
-    ax.legend(fontsize=7)
-    ax.set_title("polar order", fontsize=8)
-    axes[1].text(-0.18, 1.04, "(b)", transform=axes[1].transAxes,
-                 fontsize=10, fontweight="bold")
-
-    ax = axes[2]
-    for ia, a in enumerate(alphas):
-        ax.plot(V, chi[ia], "s-", color=palette[ia], ms=3, lw=1.0,
-                label=fr"$\alpha={a:.1f}$")
-    ax.set_xlabel(r"$V$")
-    ax.set_ylabel(r"$\chi$")
-    ax.legend(fontsize=7)
-    ax.set_title("susceptibility", fontsize=8)
-    axes[2].text(-0.18, 1.04, "(c)", transform=axes[2].transAxes,
-                 fontsize=10, fontweight="bold")
-
-    fig.tight_layout()
-    _save(fig, "fig_calibrated.pdf")
-
-
-def fig_diffusion(npz_path: Path):
-    """Angular and spatial mean-square displacements vs t, log-log,
-    one panel each. Three alpha at one near-critical eta = 0.15."""
+def fig_diffusion(npz_path: Path, clusters_path: Path):
+    """1x4 single-particle and cluster summary at one near-critical
+    operating point. (a) angular MSD and (b) spatial MSD vs t at
+    eta = 0.15, each curve annotated with an asymptotic-window slope
+    and point-bootstrap CI; (c) cluster-size distribution P(s) at one
+    near-critical eta per alpha; (d) largest-cluster fraction
+    <s_max>/N vs eta.
+    """
     z = np.load(npz_path)
     alphas = z["alphas"]
     etas = z["etas"]
@@ -422,45 +308,110 @@ def fig_diffusion(npz_path: Path):
     msd_theta = z["msd_theta"]
     msd_x = z["msd_x"]
 
+    zc = np.load(clusters_path)
+    c_alphas = zc["alphas"]
+    c_etas = zc["etas"]
+    hist_bins = zc["hist_bins"]
+    hist = zc["hist"]
+    smax_frac = zc["smax_frac"]
+    centers = np.sqrt(hist_bins[:-1] * hist_bins[1:])
+    widths = np.diff(hist_bins)
+
     palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
     ie = int(np.argmin(np.abs(etas - 0.15)))
 
-    fig, axes = plt.subplots(1, 2, figsize=(style.DOUBLE_COL[0], 2.6))
+    rng = np.random.default_rng(0)
+    n_boot = 800
 
-    # Angular MSD
+    def _slope_with_ci(t_arr, y_arr, t_lo, t_hi):
+        idx = np.where((t_arr >= t_lo) & (t_arr <= t_hi))[0]
+        s, _ = np.polyfit(np.log(t_arr[idx]), np.log(y_arr[idx]), 1)
+        boot = np.empty(n_boot)
+        for b in range(n_boot):
+            sample = rng.choice(idx, size=len(idx), replace=True)
+            boot[b] = np.polyfit(np.log(t_arr[sample]),
+                                 np.log(y_arr[sample]), 1)[0]
+        return float(s), float(boot.std())
+
+    fig, axes = plt.subplots(1, 4,
+                             figsize=(style.DOUBLE_COL[0] * 1.5, 2.5))
+
+    # Panel (a): angular MSD.
     ax = axes[0]
+    t_lo, t_hi = 50.0, t[-1]
     for ia, alpha_val in enumerate(alphas):
+        s, se = _slope_with_ci(t, msd_theta[ia, ie], t_lo, t_hi)
         ax.loglog(t, msd_theta[ia, ie], "o-",
-                  color=palette[ia], ms=3, lw=1.0,
-                  label=fr"$\alpha={alpha_val:.1f}$")
-    # Reference linear (normal-diffusion) slope
+                  color=palette[ia], ms=1.5, lw=1.0,
+                  label=fr"$\alpha={alpha_val:.1f}$: "
+                        fr"slope$\,{s:.2f}\!\pm\!{se:.2f}$")
     t_ref = np.geomspace(t[1], t[-1], 50)
     A = msd_theta[-1, ie, len(t)//2] / t[len(t)//2]
-    ax.loglog(t_ref, A * t_ref, "k--", lw=0.7, alpha=0.6,
-              label=r"slope $1$")
+    ax.loglog(t_ref, A * t_ref, "k:", lw=0.7, alpha=0.5,
+              label=r"slope $1$ (ref)")
     ax.set_xlabel(r"time $t$")
     ax.set_ylabel(r"$\langle\Delta\theta^2\rangle$")
-    ax.legend(fontsize=7)
-    ax.set_title(r"angular MSD ($\eta = 0.15$)", fontsize=8)
-    axes[0].text(-0.18, 1.04, "(a)", transform=axes[0].transAxes,
-                 fontsize=10, fontweight="bold")
+    ax.legend(fontsize=7, loc="upper left")
+    ax.set_title(r"angular MSD ($\eta = 0.15$)", fontsize=9)
+    ax.text(-0.24, 1.04, "(a)", transform=ax.transAxes,
+            fontsize=10, fontweight="bold")
 
-    # Spatial MSD
+    # Panel (b): spatial MSD.
     ax = axes[1]
     for ia, alpha_val in enumerate(alphas):
+        s, se = _slope_with_ci(t, msd_x[ia, ie], t_lo, t_hi)
         ax.loglog(t, msd_x[ia, ie], "o-",
-                  color=palette[ia], ms=3, lw=1.0,
-                  label=fr"$\alpha={alpha_val:.1f}$")
-    # Ballistic reference (slope 2)
+                  color=palette[ia], ms=1.5, lw=1.0,
+                  label=(fr"$\alpha={alpha_val:.1f}$: "
+                         r"$\gamma_x\!=\!" + fr"{s:.2f}\!\pm\!{se:.2f}$"))
     B = msd_x[-1, ie, 4] / t[4]**2
-    ax.loglog(t_ref, B * t_ref**2, "k--", lw=0.7, alpha=0.6,
-              label=r"slope $2$")
+    ax.loglog(t_ref, B * t_ref**2, "k:", lw=0.7, alpha=0.5,
+              label=r"slope $2$ (ref)")
     ax.set_xlabel(r"time $t$")
     ax.set_ylabel(r"$\langle|\Delta\vec{r}|^2\rangle$")
+    ax.legend(fontsize=7, loc="upper left")
+    ax.set_title(r"spatial MSD ($\eta = 0.15$)", fontsize=9)
+    ax.text(-0.24, 1.04, "(b)", transform=ax.transAxes,
+            fontsize=10, fontweight="bold")
+
+    near_crit = {1.0: 0.05, 1.5: 0.10, 2.0: 0.15}
+
+    # Panel (c): cluster-size distribution P(s).
+    ax = axes[2]
+    for ia, alpha_val in enumerate(c_alphas):
+        eta_t = near_crit[float(alpha_val)]
+        je = int(np.argmin(np.abs(c_etas - eta_t)))
+        h = hist[ia, je]
+        Ps = h / (h.sum() * widths)
+        ok = (h > 0) & (centers <= 200)
+        ax.loglog(centers[ok], Ps[ok], "o-",
+                  color=palette[ia], ms=2, lw=1.0,
+                  label=fr"$\alpha={alpha_val:.1f}, "
+                        fr"\eta={c_etas[je]:.2f}$")
+    ref = np.geomspace(2.0, 80.0, 50)
+    ax.loglog(ref, ref**-1.7 * 0.5, "k--", lw=0.7, alpha=0.7,
+              label=r"slope $-1.7$")
+    ax.set_xlabel(r"cluster size $s$")
+    ax.set_ylabel(r"$P(s)$")
     ax.legend(fontsize=7)
-    ax.set_title(r"spatial MSD ($\eta = 0.15$)", fontsize=8)
-    axes[1].text(-0.18, 1.04, "(b)", transform=axes[1].transAxes,
-                 fontsize=10, fontweight="bold")
+    ax.set_title("cluster-size distribution", fontsize=9)
+    ax.text(-0.24, 1.04, "(c)", transform=ax.transAxes,
+            fontsize=10, fontweight="bold")
+
+    # Panel (d): largest-cluster fraction.
+    ax = axes[3]
+    for ia, alpha_val in enumerate(c_alphas):
+        ax.plot(c_etas, smax_frac[ia], "o-", color=palette[ia],
+                ms=2, lw=1.2, label=fr"$\alpha={alpha_val:.1f}$")
+    ax.set_xlabel(r"$\eta$")
+    ax.set_ylabel(r"$\langle s_{\max}\rangle / N$")
+    ymin, ymax = float(smax_frac.min()), float(smax_frac.max())
+    pad = 0.08 * (ymax - ymin)
+    ax.set_ylim(ymin - pad, ymax + pad)
+    ax.legend(fontsize=7, loc="upper right")
+    ax.set_title("largest-cluster fraction", fontsize=9)
+    ax.text(-0.24, 1.04, "(d)", transform=ax.transAxes,
+            fontsize=10, fontweight="bold")
 
     fig.tight_layout()
     _save(fig, "fig_diffusion.pdf")
@@ -495,8 +446,8 @@ def fig_correlations(npz_path: Path):
     ax.set_ylabel(r"$C_v(r)$")
     ax.set_xlim(0, 5)
     ax.set_ylim(1e-2, 1.2)
-    ax.legend(fontsize=6)
-    ax.set_title("velocity correlation", fontsize=8)
+    ax.legend(fontsize=7)
+    ax.set_title("velocity correlation", fontsize=9)
     axes[0].text(-0.22, 1.04, "(a)", transform=axes[0].transAxes,
                  fontsize=10, fontweight="bold")
 
@@ -511,7 +462,7 @@ def fig_correlations(npz_path: Path):
     ax.set_xlabel(r"$\eta$")
     ax.set_ylabel(r"correlation length $\xi$")
     ax.legend(fontsize=7)
-    ax.set_title("correlation length vs noise", fontsize=8)
+    ax.set_title("correlation length vs noise", fontsize=9)
     axes[1].text(-0.22, 1.04, "(b)", transform=axes[1].transAxes,
                  fontsize=10, fontweight="bold")
 
@@ -530,7 +481,7 @@ def fig_correlations(npz_path: Path):
     ax.set_ylabel(r"$g(r)$")
     ax.set_xlim(0, 3.5)
     ax.legend(fontsize=7)
-    ax.set_title("pair correlation", fontsize=8)
+    ax.set_title("pair correlation", fontsize=9)
     axes[2].text(-0.22, 1.04, "(c)", transform=axes[2].transAxes,
                  fontsize=10, fontweight="bold")
 
@@ -540,9 +491,14 @@ def fig_correlations(npz_path: Path):
 
 def fig_bands(npz_path: Path):
     """Travelling-band visualisation: top row shows a snapshot per
-    alpha (rotated so the polar direction is along +x); bottom row
-    shows the time-averaged density profile along that direction.
-    """
+    alpha (rotated so the polar direction is along +x), with the
+    same particle glyph as Fig.~\\ref{fig:order_snapshots} (dot at
+    the position, thin shaft with a filled triangular head) and a
+    circular 5x zoom inset in the top-right corner; bottom row
+    shows the time-averaged density profile along the flow
+    direction."""
+    from matplotlib.patches import Circle, FancyArrowPatch
+
     z = np.load(npz_path)
     alphas = z["alphas"]
     etas = z["etas"]
@@ -558,58 +514,160 @@ def fig_bands(npz_path: Path):
                              figsize=(style.DOUBLE_COL[0], 4.6),
                              gridspec_kw={"height_ratios": [1.7, 1.0]})
 
-    arrow_len = 0.55
+    cmap = plt.get_cmap("twilight")
+    # Main-panel glyph drawn 30% larger and thicker than the
+    # zoom-inset glyph so it stays legible at the full-box view.
+    arr_len = 2.08 * (L / 91.0)
+    rng = np.random.default_rng(0)
+    n_show = min(int(round(0.18 * L * L)), 1800)
+
+    # Inset (5x zoom) parameters. The source patch is picked
+    # adaptively per panel (the densest L/10 disc) so the zoom
+    # always lands on a populated region.
+    inset_side_frac = 0.50
+    pad = 0.02
+    real_half = L / 20.0    # source diameter = L/10 (5x zoom)
+
+    # Common tight y-window for the density profiles (panels d-f),
+    # hugging the data so no empty margin shows.
+    _norms = [profiles[i] / profiles[i].mean()
+              for i in range(len(alphas))]
+    _half = max(max(n.max() - 1.0, 1.0 - n.min()) for n in _norms)
+    prof_lo, prof_hi = 1.0 - _half - 0.015, 1.0 + _half + 0.015
+
     for ic in range(len(alphas)):
         # --- snapshot rotated to align global flow with +x ---
-        x = snap_x[ic]
-        y = snap_y[ic]
-        th = snap_theta[ic]
-        theta_avg = float(np.arctan2(np.sin(th).sum(),
-                                     np.cos(th).sum()))
+        x_all = snap_x[ic]
+        y_all = snap_y[ic]
+        th_all = snap_theta[ic]
+        theta_avg = float(np.arctan2(np.sin(th_all).sum(),
+                                     np.cos(th_all).sum()))
         c, s = np.cos(-theta_avg), np.sin(-theta_avg)
-        xr = (c * x - s * y) % L
-        yr = (s * x + c * y) % L
-        thr = (th - theta_avg + np.pi) % (2 * np.pi) - np.pi
+        xr_all = (c * x_all - s * y_all) % L
+        yr_all = (s * x_all + c * y_all) % L
+        thr_all = (th_all - theta_avg + np.pi) % (2 * np.pi) - np.pi
 
         ax = axes[0, ic]
-        u = np.cos(thr)
-        v = np.sin(thr)
-        ax.quiver(xr, yr, u, v,
-                  color=style.PARTICLE_BLUE,
-                  scale=1.0 / arrow_len, scale_units="xy",
-                  angles="xy", width=0.003,
-                  headwidth=2.8, headlength=3.4)
+
+        # Subsample for the main panel.
+        idx = rng.choice(xr_all.size,
+                         size=min(n_show, xr_all.size),
+                         replace=False)
+        x = xr_all[idx]; y = yr_all[idx]; th = thr_all[idx]
+        col_val = (th + np.pi) / (2 * np.pi)
+
+        ax.scatter(x, y, s=0.78, c=col_val, cmap=cmap,
+                   vmin=0.0, vmax=1.0,
+                   edgecolors="white", linewidths=0.104, zorder=3)
+        for xi, yi, thi, cv in zip(x, y, th, col_val):
+            colour = cmap(cv)
+            a = FancyArrowPatch(
+                (xi, yi),
+                (xi + arr_len * np.cos(thi),
+                 yi + arr_len * np.sin(thi)),
+                arrowstyle="-|>", color=colour,
+                lw=0.2925, mutation_scale=2.6,
+                shrinkA=0.0, shrinkB=0.0, zorder=2)
+            ax.add_patch(a)
+
+        # --- circular 5x zoom inset: densest L/10 disc ---
+        best_cnt, cx, cy = -1, 0.5 * L, 0.5 * L
+        for fx in np.linspace(0.25, 0.75, 6):
+            for fy in np.linspace(0.25, 0.75, 6):
+                gx, gy = fx * L, fy * L
+                cnt = int(((xr_all - gx) ** 2 + (yr_all - gy) ** 2
+                           <= real_half ** 2).sum())
+                if cnt > best_cnt:
+                    best_cnt, cx, cy = cnt, gx, gy
+        in_disc = ((xr_all - cx) ** 2 + (yr_all - cy) ** 2
+                   <= real_half ** 2)
+        xi_d = xr_all[in_disc]; yi_d = yr_all[in_disc]
+        thi_d = thr_all[in_disc]
+        cv_d = (thi_d + np.pi) / (2 * np.pi)
+
+        inset_bl = (1 - inset_side_frac - pad,
+                    1 - inset_side_frac - pad)
+        ax_in = ax.inset_axes([*inset_bl, inset_side_frac,
+                               inset_side_frac])
+        ax_in.set_xlim(cx - real_half, cx + real_half)
+        ax_in.set_ylim(cy - real_half, cy + real_half)
+        ax_in.set_aspect("equal")
+        ax_in.set_xticks([]); ax_in.set_yticks([])
+        ax_in.patch.set_visible(False)
+        for sp in ax_in.spines.values():
+            sp.set_visible(False)
+
+        bg = Circle((0.5, 0.5), 0.5, transform=ax_in.transAxes,
+                    facecolor="white", edgecolor="none", zorder=0)
+        ax_in.add_patch(bg)
+        clip = Circle((0.5, 0.5), 0.5,
+                      transform=ax_in.transAxes,
+                      facecolor="none", edgecolor="none")
+        ax_in.add_patch(clip)
+
+        if xi_d.size > 0:
+            arr_len_in = (2.0 * real_half) * 0.065
+            sc = ax_in.scatter(xi_d, yi_d, s=0.6, c=cv_d,
+                               cmap=cmap, vmin=0.0, vmax=1.0,
+                               edgecolors="white", linewidths=0.08,
+                               zorder=4)
+            sc.set_clip_path(clip)
+            for xx, yy, tt, cc in zip(xi_d, yi_d, thi_d, cv_d):
+                colour = cmap(cc)
+                a = FancyArrowPatch(
+                    (xx, yy),
+                    (xx + arr_len_in * np.cos(tt),
+                     yy + arr_len_in * np.sin(tt)),
+                    arrowstyle="-|>", color=colour,
+                    lw=0.225, mutation_scale=2.0,
+                    shrinkA=0.0, shrinkB=0.0, zorder=3)
+                ax_in.add_patch(a)
+                a.set_clip_path(clip)
+
+        outline = Circle((0.5, 0.5), 0.5,
+                         transform=ax_in.transAxes,
+                         fill=False, edgecolor="black",
+                         linewidth=0.9, zorder=10)
+        ax_in.add_patch(outline)
+
         ax.set_xlim(0, L)
         ax.set_ylim(0, L)
         ax.set_aspect("equal")
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_title(
+            fr"({chr(ord('a') + ic)}) "
             fr"$\alpha={alphas[ic]:.1f}$, $\eta={etas[ic]:.2f}$"
             "\n"
             fr"band index $= {band_idx[ic]:.2f}$",
-            fontsize=8,
+            fontsize=9,
         )
 
         # --- time-averaged density profile along the flow axis ---
         ax = axes[1, ic]
         norm = profiles[ic] / profiles[ic].mean()
         ax.plot(centers, norm, "-", color=style.PARTICLE_BLUE, lw=1.2)
+        ax.fill_between(centers, norm, 1.0, where=(norm > 1.0),
+                        color=style.PARTICLE_BLUE, alpha=0.18, lw=0)
+        ax.fill_between(centers, norm, 1.0, where=(norm < 1.0),
+                        color="#c83a3a", alpha=0.18, lw=0)
         ax.axhline(1.0, ls=":", c="grey", lw=0.6)
         ax.set_xlabel(r"$x_\parallel$")
         if ic == 0:
             ax.set_ylabel(r"$\sigma(x_\parallel)/\langle\sigma\rangle$")
         ax.set_xlim(0, L)
-        ax.set_ylim(0, max(1.4, 1.1 * norm.max()))
-        ax.tick_params(labelsize=7)
+        ax.set_ylim(prof_lo, prof_hi)
+        ax.set_title(f"({chr(ord('d') + ic)})", fontsize=9)
+        ax.tick_params(labelsize=8)
 
     fig.tight_layout()
     _save(fig, "fig_bands.pdf")
 
 
 def fig_phase_curve(npz_path: Path):
-    """Phase boundary eta_c(alpha) extracted from a smooth alpha-grid
-    sweep, plus the underlying phi(eta) and chi(eta) curves."""
+    """Smooth phase boundary (panels a-c from the alpha-grid sweep)
+    with the giant-number-fluctuation cross-check as panel (d), in
+    a single 1x4 row. Panel (d) reads gnf.npz from the same dir."""
     z = np.load(npz_path)
     alphas = z["alphas"]
     etas = z["etas"]
@@ -620,269 +678,73 @@ def fig_phase_curve(npz_path: Path):
 
     cmap = plt.cm.viridis
     n_a = len(alphas)
-    fig, axes = plt.subplots(1, 3, figsize=(style.DOUBLE_COL[0], 2.6))
+    fig, axes = plt.subplots(1, 4,
+                             figsize=(style.DOUBLE_COL[0] * 1.3375, 2.5))
 
     ax = axes[0]
     for ia, a in enumerate(alphas):
         ax.plot(etas, phi[ia], "o-",
                 color=cmap(ia / max(1, n_a - 1)),
-                ms=3.5, lw=1.0,
+                ms=1.75, lw=1.0,
                 label=fr"$\alpha={a:.2f}$")
     ax.set_xlabel(r"$\eta$")
     ax.set_ylabel(r"$\langle\varphi\rangle$")
     ax.set_ylim(-0.02, 1.02)
-    ax.legend(fontsize=6, ncol=2)
-    ax.set_title("polar order", fontsize=8)
-    axes[0].text(-0.18, 1.04, "(a)", transform=axes[0].transAxes,
-                 fontsize=10, fontweight="bold")
+    ax.legend(fontsize=7, ncol=2)
+    ax.set_title("(a) polar order", fontsize=9)
 
     ax = axes[1]
     for ia, a in enumerate(alphas):
         ax.plot(etas, chi[ia], "s-",
                 color=cmap(ia / max(1, n_a - 1)),
-                ms=3.5, lw=1.0,
-                label=fr"$\alpha={a:.2f}$")
+                ms=1.75, lw=1.0)
     ax.set_xlabel(r"$\eta$")
     ax.set_ylabel(r"$\chi$")
-    ax.set_title("susceptibility", fontsize=8)
-    axes[1].text(-0.18, 1.04, "(b)", transform=axes[1].transAxes,
-                 fontsize=10, fontweight="bold")
+    ax.set_title("(b) susceptibility", fontsize=9)
 
     ax = axes[2]
     ax.plot(alphas, eta_c_chi, "o-", color="#d76f3a",
-            ms=5, lw=1.2, label=r"from $\chi$ peak")
+            ms=2.5, lw=1.2, label=r"$\chi$ peak")
     ax.plot(alphas, eta_c_phi, "s--", color="#1f4ea1",
-            ms=5, lw=1.2, label=r"from $\langle\varphi\rangle = 1/2$")
+            ms=2.5, lw=1.2, label=r"$\langle\varphi\rangle = 1/2$")
     ax.set_xlabel(r"$\alpha$")
     ax.set_ylabel(r"$\eta_c$")
     ax.legend(fontsize=7)
-    ax.set_title("phase boundary", fontsize=8)
-    axes[2].text(-0.18, 1.04, "(c)", transform=axes[2].transAxes,
-                 fontsize=10, fontweight="bold")
+    ax.set_title("(c) phase boundary", fontsize=9)
 
+    # (d) giant number fluctuations, merged in from gnf.npz
+    ax = axes[3]
+    zg = np.load(npz_path.parent / "gnf.npz")
+    g_alphas = zg["alphas"]
+    means = zg["means"]
+    vars_ = zg["vars"]
+    palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
+    markers = ["o", "s", "D"]
+    for i, av in enumerate(g_alphas):
+        m = means[i]; v = vars_[i]
+        ok = (m > 0) & (v > 0)
+        slope, intercept = np.polyfit(np.log(m[ok]), np.log(v[ok]), 1)
+        zeta = slope / 2.0
+        ax.loglog(m[ok], v[ok], marker=markers[i], ls="",
+                  color=palette[i], ms=2, mfc="none", mew=1.0,
+                  label=fr"$\alpha={av:g}$: $\zeta={zeta:.2f}$")
+        mg = np.geomspace(m[ok].min(), m[ok].max(), 40)
+        ax.loglog(mg, np.exp(intercept) * mg ** slope, "-",
+                  color=palette[i], lw=0.8, alpha=0.55)
+    all_m = np.concatenate([m[m > 0] for m in means])
+    mg = np.geomspace(all_m.min(), all_m.max(), 40)
+    ax.loglog(mg, mg, "k:", lw=0.9, label=r"Poisson")
+    ax.loglog(mg, mg ** 1.6 / mg[0] ** 0.6 * mg[0], "k--", lw=0.7,
+              alpha=0.6, label=r"Toner--Tu")
+    ax.set_xlabel(r"$\langle N_\ell\rangle$")
+    ax.set_ylabel(r"$\mathrm{Var}(N_\ell)$")
+    ax.legend(fontsize=7, loc="upper left", framealpha=0.9)
+    ax.set_title("(d) number fluctuations", fontsize=9)
+
+    for ax in axes:
+        ax.tick_params(labelsize=8)
     fig.tight_layout()
     _save(fig, "fig_phase_curve.pdf")
-
-
-def fig_adaptive_pilot(npz_path: Path):
-    """Pilot comparison of fixed-alpha=1 vs adaptive alpha_i in [1,2].
-    Six panels: (top row) phi, chi, U4 vs eta with L overlay for each
-    mode; (bottom row) alpha_mean(eta) and alpha_std(eta) for the
-    adaptive run, plus the chi_max(L) scaling for both modes."""
-    z = np.load(npz_path, allow_pickle=True)
-    modes = [str(m) if isinstance(m, str) else m.decode() for m in z["modes"]]
-    Ls = z["Ls"]
-    etas = z["etas"]
-    phi = z["phi"]
-    chi = z["chi"]
-    binder = z["binder"]
-    alpha_mean = z["alpha_mean"]
-    alpha_std = z["alpha_std"]
-
-    n_L = len(Ls)
-    cmap_fix = plt.cm.Greens(np.linspace(0.4, 0.95, n_L))
-    cmap_ada = plt.cm.Oranges(np.linspace(0.4, 0.95, n_L))
-
-    fig, axes = plt.subplots(2, 3, figsize=(style.DOUBLE_COL[0], 4.6))
-
-    panels = [(phi, r"$\langle\varphi\rangle$", "polar order", (-0.02, 1.02)),
-              (chi, r"$\chi$", "susceptibility", None),
-              (binder, r"$U_4$", "Binder cumulant", None)]
-
-    for k, (arr, ylab, title, ylim) in enumerate(panels):
-        ax = axes[0, k]
-        for il, L in enumerate(Ls):
-            ax.plot(etas, arr[0, il], "o--",
-                    color=cmap_fix[il], ms=3, lw=0.9,
-                    label=fr"fix, $L={int(L)}$" if k == 0 else None)
-            ax.plot(etas, arr[1, il], "s-",
-                    color=cmap_ada[il], ms=3, lw=1.0,
-                    label=fr"adapt, $L={int(L)}$" if k == 0 else None)
-        ax.set_xlabel(r"$\eta$")
-        ax.set_ylabel(ylab)
-        ax.set_title(title, fontsize=8)
-        if ylim is not None:
-            ax.set_ylim(*ylim)
-        if title == "Binder cumulant":
-            ax.axhline(2.0 / 3.0, ls=":", c="grey", lw=0.6)
-        ax.text(-0.18, 1.04, f"({chr(97+k)})",
-                transform=ax.transAxes, fontsize=10, fontweight="bold")
-    axes[0, 0].legend(fontsize=5, ncol=2, loc="lower left")
-
-    # alpha_mean(eta) at largest L
-    ax = axes[1, 0]
-    for il, L in enumerate(Ls):
-        ax.plot(etas, alpha_mean[il], "o-", color=cmap_ada[il],
-                ms=3.5, lw=1.0, label=fr"$L={int(L)}$")
-    ax.axhline(1.0, ls=":", c="grey", lw=0.6)
-    ax.axhline(2.0, ls=":", c="grey", lw=0.6)
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel(r"$\langle\alpha_i\rangle$")
-    ax.set_title("population-mean stability index", fontsize=8)
-    ax.legend(fontsize=6)
-    ax.text(-0.18, 1.04, "(d)", transform=ax.transAxes,
-            fontsize=10, fontweight="bold")
-
-    # alpha_std(eta)
-    ax = axes[1, 1]
-    for il, L in enumerate(Ls):
-        ax.plot(etas, alpha_std[il], "s-", color=cmap_ada[il],
-                ms=3.5, lw=1.0, label=fr"$L={int(L)}$")
-    ax.set_xlabel(r"$\eta$")
-    ax.set_ylabel(r"$\sigma(\alpha_i)$")
-    ax.set_title("population spread of $\\alpha_i$", fontsize=8)
-    ax.legend(fontsize=6)
-    ax.text(-0.18, 1.04, "(e)", transform=ax.transAxes,
-            fontsize=10, fontweight="bold")
-
-    # chi_max(L) for both modes
-    ax = axes[1, 2]
-    chi_max_fix = np.array([chi[0, il].max() for il in range(n_L)])
-    chi_max_ada = np.array([chi[1, il].max() for il in range(n_L)])
-    ax.loglog(Ls, chi_max_fix, "o--", color="#3aa040", ms=4,
-              label="fixed $\\alpha=1$")
-    ax.loglog(Ls, chi_max_ada, "s-", color="#d76f3a", ms=4,
-              label="adaptive")
-    if len(Ls) >= 2:
-        sf = np.polyfit(np.log(Ls), np.log(chi_max_fix), 1)[0]
-        sa = np.polyfit(np.log(Ls), np.log(chi_max_ada), 1)[0]
-        ax.text(0.05, 0.95, fr"slope$_{{\rm fix}}={sf:.2f}$",
-                transform=ax.transAxes, fontsize=7, color="#3aa040")
-        ax.text(0.05, 0.87, fr"slope$_{{\rm ad}}={sa:.2f}$",
-                transform=ax.transAxes, fontsize=7, color="#d76f3a")
-    ax.set_xlabel(r"$L$")
-    ax.set_ylabel(r"$\chi_{\max}$")
-    ax.set_title("FSS of susceptibility", fontsize=8)
-    ax.legend(fontsize=6)
-    ax.text(-0.18, 1.04, "(f)", transform=ax.transAxes,
-            fontsize=10, fontweight="bold")
-
-    fig.tight_layout()
-    _save(fig, "fig_adaptive_pilot.pdf")
-
-
-def fig_synthesis(data_dir: Path):
-    """Single graphical summary: alpha-dependence of six diagnostics
-    that quantify the heavy-tail effect on the metric Vicsek-Couzin
-    transition. Each panel shows one number per alpha extracted from
-    the corresponding sweep.
-    """
-    fig, axes = plt.subplots(2, 3, figsize=(style.DOUBLE_COL[0], 4.6))
-    axes = axes.flatten()
-    palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
-
-    def styled(ax, title):
-        ax.set_xlabel(r"$\alpha$")
-        ax.set_title(title, fontsize=8)
-        ax.set_xticks([1.0, 1.5, 2.0])
-
-    # 1. Hysteresis area (lower = closer to continuous).
-    ax = axes[0]
-    z = np.load(data_dir / "hysteresis.npz")
-    alphas = z["alphas"]
-    eta_path = z["eta_path"]
-    direction = z["direction"]
-    phi_traj = z["phi_traj"]
-    # Bin into eta cells, separating up (direction=+1) and down legs.
-    eta_grid = np.linspace(eta_path.min(), eta_path.max(), 33)
-    centers = 0.5 * (eta_grid[:-1] + eta_grid[1:])
-    areas = []
-    for ia in range(len(alphas)):
-        up_idx = direction > 0
-        dn_idx = direction < 0
-        up_eta = eta_path[up_idx]
-        dn_eta = eta_path[dn_idx]
-        up_phi = phi_traj[ia, up_idx]
-        dn_phi = phi_traj[ia, dn_idx]
-        u_bin = np.array([
-            up_phi[(up_eta >= eta_grid[k]) & (up_eta < eta_grid[k + 1])].mean()
-            if ((up_eta >= eta_grid[k]) & (up_eta < eta_grid[k + 1])).any()
-            else np.nan
-            for k in range(len(centers))
-        ])
-        d_bin = np.array([
-            dn_phi[(dn_eta >= eta_grid[k]) & (dn_eta < eta_grid[k + 1])].mean()
-            if ((dn_eta >= eta_grid[k]) & (dn_eta < eta_grid[k + 1])).any()
-            else np.nan
-            for k in range(len(centers))
-        ])
-        ok = ~(np.isnan(u_bin) | np.isnan(d_bin))
-        areas.append(float(np.trapezoid(np.abs(u_bin[ok] - d_bin[ok]),
-                                        centers[ok])))
-    ax.plot(alphas, areas, "o-", color=palette[0], ms=5, lw=1.2)
-    ax.set_ylabel(r"hysteresis area")
-    styled(ax, "(a) hysteresis area")
-
-    # 2. Band index from data/bands.npz.
-    ax = axes[1]
-    zb = np.load(data_dir / "bands.npz")
-    ax.plot(zb["alphas"], zb["band_idx"], "s-", color=palette[1],
-            ms=5, lw=1.2)
-    ax.axhline(1.0, ls=":", c="grey", lw=0.6)
-    ax.set_ylabel(r"band index $b$")
-    styled(ax, "(b) band amplitude")
-
-    # 3. Correlation length xi at near-critical eta from data/correlations.npz.
-    ax = axes[2]
-    zc = np.load(data_dir / "correlations.npz")
-    alpha_c = zc["alphas"]
-    eta_c = zc["etas"]
-    xi = zc["xi"]
-    near_crit = {1.0: 0.05, 1.5: 0.10, 2.0: 0.15}
-    xi_pts = []
-    for ia, a in enumerate(alpha_c):
-        ie = int(np.argmin(np.abs(eta_c - near_crit[float(a)])))
-        xi_pts.append(xi[ia, ie])
-    ax.plot(alpha_c, xi_pts, "D-", color=palette[2], ms=5, lw=1.2)
-    ax.set_ylabel(r"$\xi$ at $\eta_c(\alpha)$")
-    styled(ax, "(c) correlation length")
-
-    # 4. Spatial MSD exponent gamma_x at eta = 0.15 from diffusion.npz.
-    ax = axes[3]
-    zd = np.load(data_dir / "diffusion.npz")
-    a_d = zd["alphas"]
-    eta_d = zd["etas"]
-    t = zd["t"].astype(float)
-    msd_x = zd["msd_x"]
-    ie = int(np.argmin(np.abs(eta_d - 0.15)))
-    fit = (t >= 50) & (t <= 1500)
-    gam_x = []
-    for ia in range(len(a_d)):
-        s, _ = np.polyfit(np.log(t[fit]), np.log(msd_x[ia, ie][fit]), 1)
-        gam_x.append(float(s))
-    ax.plot(a_d, gam_x, "v-", color=palette[0], ms=5, lw=1.2)
-    ax.axhline(1.0, ls=":", c="grey", lw=0.6,
-               label="diffusive")
-    ax.axhline(2.0, ls="--", c="grey", lw=0.6,
-               label="ballistic")
-    ax.set_ylabel(r"$\gamma_x$ at $\eta = 0.15$")
-    ax.legend(fontsize=6, loc="lower right")
-    styled(ax, "(d) spatial MSD exponent")
-
-    # 5. Effective angular diffusivity D_theta from diffusion.npz.
-    ax = axes[4]
-    msd_th = zd["msd_theta"]
-    D_th = []
-    for ia in range(len(a_d)):
-        D_th.append(float(msd_th[ia, ie][fit].mean() / t[fit].mean()))
-    ax.plot(a_d, D_th, "^-", color=palette[1], ms=5, lw=1.2)
-    ax.set_ylabel(r"$D_\theta$ at $\eta = 0.15$")
-    styled(ax, "(e) angular diffusivity")
-
-    # 6. Chi_max at L = 45 from fss_sweep.npz.
-    ax = axes[5]
-    zf = np.load(data_dir / "fss_sweep.npz")
-    a_f = zf["alphas"]
-    Ls_f = zf["Ls"]
-    chi_f = zf["chi"]   # shape (n_L, n_alpha, n_eta)
-    il_max = int(np.argmax(Ls_f))
-    chi_max = chi_f[il_max].max(axis=1)
-    ax.plot(a_f, chi_max, "*-", color=palette[2], ms=7, lw=1.2)
-    ax.set_ylabel(fr"$\chi_{{\max}}$ at $L = {int(Ls_f[il_max])}$")
-    styled(ax, "(f) FSS susceptibility peak")
-
-    fig.tight_layout()
-    _save(fig, "fig_synthesis.pdf")
 
 
 def fig_orderpdf_k(npz_path_k: Path, npz_path_main: Path):
@@ -920,7 +782,7 @@ def fig_orderpdf_k(npz_path_k: Path, npz_path_main: Path):
                 color=palette[k_pan], alpha=0.75,
                 edgecolor="black", linewidth=0.4)
         ax.set_title(fr"$k = {int(k_t)}$, $\eta = {eta:.2f}$",
-                     fontsize=8)
+                     fontsize=9)
         ax.set_xlabel(r"$\langle\varphi\rangle$")
         ax.set_ylabel(r"$P(\langle\varphi\rangle)$")
         ax.set_xlim(0, 1)
@@ -956,8 +818,8 @@ def fig_topo_k(npz_path: Path):
     ax.set_xlabel(r"$\eta$")
     ax.set_ylabel(r"$\chi$")
     ax.set_title(r"$\alpha = 1$: $\chi(\eta)$ for varying $k$",
-                 fontsize=8)
-    ax.legend(fontsize=6, ncol=2)
+                 fontsize=9)
+    ax.legend(fontsize=7, ncol=2)
     axes[0].text(-0.18, 1.04, "(a)", transform=axes[0].transAxes,
                  fontsize=10, fontweight="bold")
 
@@ -971,9 +833,9 @@ def fig_topo_k(npz_path: Path):
     ax.set_xticks(np.arange(len(ks)))
     ax.set_xticklabels([f"$k={int(k)}$" for k in ks])
     ax.set_ylabel(r"slope $\log\chi_{\max}(L)/\log L$")
-    ax.axhline(1.58, ls=":", c="grey", lw=0.7,
-               label=r"$k = 6$ ref ($1.58$)")
-    ax.set_title(r"$L = 15 \to 30$ scaling", fontsize=8)
+    ax.axhline(0.96, ls=":", c="grey", lw=0.7,
+               label=r"$k = 6$ ref ($0.96$)")
+    ax.set_title(r"$L = 15 \to 30$ scaling", fontsize=9)
     ax.legend(fontsize=7)
     axes[1].text(-0.18, 1.04, "(b)", transform=axes[1].transAxes,
                  fontsize=10, fontweight="bold")
@@ -1006,7 +868,8 @@ def fig_orderpdf(npz_path: Path):
     palette = {"metric_a2": "#1f4ea1", "metric_a1": "#3aa040",
                "topo_a2":   "#1f4ea1", "topo_a1":   "#3aa040"}
 
-    fig, axes = plt.subplots(2, 2, figsize=(style.DOUBLE_COL[0], 4.6))
+    fig, axes = plt.subplots(1, 4,
+                             figsize=(style.DOUBLE_COL[0] * 1.3375, 2.5))
     axes = axes.flatten()
     bins = np.linspace(0.0, 1.0, 60)
 
@@ -1018,7 +881,7 @@ def fig_orderpdf(npz_path: Path):
                 color=palette[lbl], alpha=0.7,
                 edgecolor="black", linewidth=0.4)
         title, sub = nice_labels[lbl]
-        ax.set_title(f"{title}\n{sub}", fontsize=8)
+        ax.set_title(f"{title}\n{sub}", fontsize=9)
         ax.set_xlabel(r"$\langle\varphi\rangle$")
         ax.set_ylabel(r"$P(\langle\varphi\rangle)$")
         ax.set_xlim(0, 1)
@@ -1076,7 +939,7 @@ def fig_bands_topo(npz_path: Path):
             fr"$\alpha={alphas[ic]:.1f}$, $\eta={etas[ic]:.2f}$"
             "\n"
             fr"band index $= {band_idx[ic]:.2f}$",
-            fontsize=8,
+            fontsize=9,
         )
 
         ax = axes[1, ic]
@@ -1088,137 +951,10 @@ def fig_bands_topo(npz_path: Path):
             ax.set_ylabel(r"$\sigma(x_\parallel)/\langle\sigma\rangle$")
         ax.set_xlim(0, L)
         ax.set_ylim(0, max(1.4, 1.1 * norm.max()))
-        ax.tick_params(labelsize=7)
+        ax.tick_params(labelsize=8)
 
     fig.tight_layout()
     _save(fig, "fig_bands_topo.pdf")
-
-
-def fig_gnf(npz_path: Path):
-    """Giant number fluctuations: Var(N_box) vs <N_box> in log-log,
-    one curve per (alpha, eta) ordered-phase point, with linear fits
-    giving the exponent zeta. Reference line zeta = 1/2 for Poisson.
-    The inset shows residuals to the alpha=2 fit, evidencing the
-    alpha-independence of the GNF curve.
-    """
-    z = np.load(npz_path)
-    alphas = z["alphas"]
-    etas = z["etas"]
-    means = z["means"]
-    vars_ = z["vars"]
-
-    fig, ax = plt.subplots(figsize=(style.SINGLE_COL[0] * 1.25,
-                                    style.SINGLE_COL[1] * 1.15))
-    palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
-    markers = ["o", "s", "D"]
-
-    # Reference fit: alpha = 2.0 curve (last entry by construction)
-    i_ref = int(np.argmax(np.asarray(alphas, dtype=float)))
-    m_ref = means[i_ref]; v_ref = vars_[i_ref]
-    ok_ref = (m_ref > 0) & (v_ref > 0)
-    s_ref, b_ref = np.polyfit(np.log(m_ref[ok_ref]),
-                              np.log(v_ref[ok_ref]), 1)
-
-    fits = []
-    for i, (alpha_val, eta_val) in enumerate(zip(alphas, etas)):
-        m = means[i]; v = vars_[i]
-        ok = (m > 0) & (v > 0)
-        log_m = np.log(m[ok]); log_v = np.log(v[ok])
-        slope, intercept = np.polyfit(log_m, log_v, 1)
-        zeta = slope / 2.0
-        fits.append((slope, intercept, zeta))
-        ax.loglog(m[ok], v[ok], marker=markers[i], ls="",
-                  color=palette[i], ms=5, mfc="none", mew=1.2,
-                  label=fr"$\alpha={alpha_val:.1f}$, "
-                        fr"$\eta={eta_val:.2f}$: $\zeta={zeta:.2f}$")
-        m_grid = np.geomspace(m[ok].min(), m[ok].max(), 50)
-        ax.loglog(m_grid, np.exp(intercept) * m_grid**slope,
-                  "-", color=palette[i], lw=0.8, alpha=0.55)
-
-    all_m = np.concatenate([m[m > 0] for m in means])
-    m_grid = np.geomspace(all_m.min(), all_m.max(), 50)
-    ax.loglog(m_grid, m_grid, "k:", lw=0.9,
-              label=r"Poisson ($\zeta=1/2$)")
-    ax.loglog(m_grid, m_grid**1.6 / m_grid[0]**0.6 * m_grid[0],
-              "k--", lw=0.7, alpha=0.6,
-              label=r"Toner--Tu ($\zeta\simeq 0.8$)")
-
-    ax.set_xlabel(r"$\langle N_\ell\rangle$")
-    ax.set_ylabel(r"$\mathrm{Var}(N_\ell)$")
-    ax.legend(loc="upper left", fontsize=7)
-
-    # --- Inset: residuals to the alpha=2 fit ---
-    ax_in = ax.inset_axes([0.62, 0.10, 0.35, 0.30])
-    ax_in.axhline(0.0, color="k", ls="--", lw=0.7, alpha=0.6)
-    for i, alpha_val in enumerate(alphas):
-        m = means[i]; v = vars_[i]
-        ok = (m > 0) & (v > 0)
-        v_pred_ref = np.exp(b_ref) * m[ok] ** s_ref
-        resid = (v[ok] - v_pred_ref) / v_pred_ref
-        ax_in.semilogx(m[ok], resid, marker=markers[i], ls="",
-                       color=palette[i], ms=3.5, mfc="none", mew=1.0)
-    ax_in.set_ylim(-0.25, 0.25)
-    ax_in.set_xlabel(r"$\langle N_\ell\rangle$", fontsize=7,
-                     labelpad=1)
-    ax_in.set_ylabel(r"$(V - V_{\alpha=2}) / V_{\alpha=2}$",
-                     fontsize=7, labelpad=1)
-    ax_in.tick_params(labelsize=6, pad=1)
-    ax_in.set_title("residuals to $\\alpha=2$ fit", fontsize=7,
-                    pad=2)
-
-    fig.tight_layout()
-    _save(fig, "fig_gnf.pdf")
-
-
-def fig_hysteresis(npz_path: Path):
-    """Hysteresis loop in (eta, phi) under a slow up/down eta ramp,
-    one curve per alpha. The enclosed area is a finite-size-robust
-    indicator of a first-order transition.
-    """
-    z = np.load(npz_path)
-    alphas = z["alphas"]
-    eta_path = z["eta_path"]
-    direction = z["direction"]
-    phi_traj = z["phi_traj"]
-    T_up = int(z["params"][6])
-
-    # Block-average to smooth single-step fluctuations.
-    bw = 80
-    def smooth(y):
-        n = len(y) // bw
-        return np.mean(y[:n * bw].reshape(n, bw), axis=1)
-
-    fig, axes = plt.subplots(1, len(alphas),
-                             figsize=(style.DOUBLE_COL[0], 2.6),
-                             sharey=True)
-    for ia, ax in enumerate(axes):
-        eta_up = eta_path[:T_up]
-        eta_dn = eta_path[T_up:]
-        phi_up = phi_traj[ia, :T_up]
-        phi_dn = phi_traj[ia, T_up:]
-        ax.plot(smooth(eta_up), smooth(phi_up), "-",
-                color="#1f4ea1", lw=1.4, label=r"ramp $\uparrow$")
-        ax.plot(smooth(eta_dn), smooth(phi_dn), "-",
-                color="#d76f3a", lw=1.4, label=r"ramp $\downarrow$")
-        # Hysteresis area as a quantitative tag.
-        e_grid = np.linspace(0.0, eta_path.max(), 80)
-        phi_up_i = np.interp(e_grid, smooth(eta_up), smooth(phi_up))
-        phi_dn_i = np.interp(e_grid, smooth(eta_dn)[::-1],
-                             smooth(phi_dn)[::-1])
-        loop_area = float(np.trapezoid(phi_up_i - phi_dn_i, e_grid))
-        max_gap = float(np.max(phi_up_i - phi_dn_i))
-        ax.set_title(fr"$\alpha = {alphas[ia]:.1f}$" "\n"
-                     fr"area $= {loop_area:.3f}$, max gap $= {max_gap:.2f}$",
-                     fontsize=8)
-        ax.set_xlabel(r"noise scale $\eta$")
-        if ia == 0:
-            ax.set_ylabel(r"polarisation $\langle\varphi\rangle$")
-            ax.legend(loc="upper right", fontsize=7)
-        ax.set_ylim(-0.02, 1.05)
-        ax.tick_params(labelsize=7)
-
-    fig.tight_layout()
-    _save(fig, "fig_hysteresis.pdf")
 
 
 def fig_3d_phase(npz_path: Path):
@@ -1252,11 +988,11 @@ def fig_3d_phase(npz_path: Path):
             c=phi_grid[valid], cmap=cmap_name, vmin=0.0, vmax=1.0,
             s=14, alpha=0.9, edgecolors="none",
         )
-        ax.set_xlabel(r"$\eta$", fontsize=8, labelpad=-1)
-        ax.set_ylabel(r"$R_r$", fontsize=8, labelpad=-1)
-        ax.set_zlabel(r"$R_a$", fontsize=8, labelpad=-1)
+        ax.set_xlabel(r"$\eta$", fontsize=9, labelpad=-1)
+        ax.set_ylabel(r"$R_r$", fontsize=9, labelpad=-1)
+        ax.set_zlabel(r"$R_a$", fontsize=9, labelpad=-1)
         ax.set_title(fr"$\alpha = {alpha_val:.1f}$", fontsize=9)
-        ax.tick_params(labelsize=6, pad=-2)
+        ax.tick_params(labelsize=8, pad=-2)
         ax.view_init(elev=22, azim=-58)
 
     # ---- Bottom row: 2D projections at standard alpha = 2 ----
@@ -1276,10 +1012,10 @@ def fig_3d_phase(npz_path: Path):
         im = ax.pcolormesh(x_edges, y_edges, Z.T,
                            cmap=cmap_name, vmin=0.0, vmax=1.0,
                            shading="auto")
-        ax.set_xlabel(xlabel, fontsize=8)
-        ax.set_ylabel(ylabel, fontsize=8)
-        ax.set_title(title, fontsize=8)
-        ax.tick_params(labelsize=6)
+        ax.set_xlabel(xlabel, fontsize=9)
+        ax.set_ylabel(ylabel, fontsize=9)
+        ax.set_title(title, fontsize=9)
+        ax.tick_params(labelsize=8)
         return im
 
     ax_b0 = fig.add_subplot(gs[1, 0])
@@ -1300,8 +1036,8 @@ def fig_3d_phase(npz_path: Path):
 
     cbar_ax = fig.add_axes([0.91, 0.10, 0.018, 0.32])
     cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label(r"polar order $\langle\varphi\rangle$", fontsize=8)
-    cbar.ax.tick_params(labelsize=6)
+    cbar.set_label(r"polar order $\langle\varphi\rangle$", fontsize=9)
+    cbar.ax.tick_params(labelsize=8)
 
     # Subfigure tags.
     fig.text(0.02, 0.95, "(a)", fontsize=10, fontweight="bold")
@@ -1343,7 +1079,7 @@ def fig_snapshots():
             f"{label}\n"
             fr"$\alpha={alpha:.1f}$, $\eta={eta:.2f}$, "
             fr"$\langle\varphi\rangle={phi_mean:.2f}\pm{phi_std:.2f}$",
-            fontsize=8,
+            fontsize=9,
         )
 
     fig.tight_layout()
@@ -1351,50 +1087,45 @@ def fig_snapshots():
 
 
 def fig_model_schematic():
-    """Schematic of the zonal Vicsek-Couzin update rule."""
+    """Schematic of the two-zone Vicsek update rule (no blind sector)."""
     from matplotlib.patches import Wedge, Patch
 
     # Zones enlarged by 20%; neighbours and arrows scaled to keep
-    # categorisation correct.
-    R_r = 0.5 * 1.2
+    # categorisation correct. R_r = 0.45 is the canonical operating
+    # point of the manuscript (set by the L=22 chi-peak scan).
+    R_r = 0.45 * 1.2
     R_a = 0.7 * 1.2
-    half_blind = 15.0  # degrees (full blind sector = 30 deg)
 
     fig, ax = plt.subplots(figsize=(5.4, 4.4))
 
     rep_color = "#e07b7b"
     ali_color = "#9bb8de"
-    blind_color = "#bfbfbf"
 
-    # Visible cone goes from -165 deg to +165 deg (CCW), leaving a 30 deg
-    # rear blind sector centred on 180 deg.
-    vis_t1 = -180 + half_blind
-    vis_t2 = 180 - half_blind
-
-    rep = Wedge((0, 0), R_r, vis_t1, vis_t2,
+    # Full 360 deg vision: both wedges span the entire disk.
+    rep = Wedge((0, 0), R_r, 0, 360,
                 facecolor=rep_color, alpha=0.55,
                 edgecolor="#9c3a3a", lw=0.9, zorder=1)
-    ali = Wedge((0, 0), R_a, vis_t1, vis_t2, width=R_a - R_r,
+    ali = Wedge((0, 0), R_a, 0, 360, width=R_a - R_r,
                 facecolor=ali_color, alpha=0.55,
                 edgecolor="#3a4a78", lw=0.9, zorder=1)
-    blind = Wedge((0, 0), R_a, 180 - half_blind, 180 + half_blind,
-                  facecolor=blind_color, alpha=0.65, hatch="///",
-                  edgecolor="#666", lw=0.7, zorder=2)
-    for patch in (rep, ali, blind):
+    for patch in (rep, ali):
         ax.add_patch(patch)
 
-    # Focal particle i: arrow at origin pointing +x.
-    head_len = 0.20 * 1.2
+    # Focal particle i: arrow at origin pointing +x. All interior
+    # elements (circles, arrowheads, labels, vectors) are sized 20%
+    # larger than the previous schematic for legibility at 0.33 line
+    # width.
+    head_len = 0.20 * 1.2 * 1.2
     ax.annotate("", xy=(head_len, 0), xytext=(0, 0),
                 arrowprops=dict(arrowstyle="-|>", color=style.PARTICLE_BLUE,
-                                lw=2.6), zorder=6)
-    ax.scatter([0], [0], s=90, color=style.PARTICLE_BLUE,
-               edgecolor="white", lw=0.8, zorder=7)
-    ax.text(0.05, -0.13, r"$i$", fontsize=13, fontweight="bold", zorder=7)
-    ax.text(head_len + 0.02, 0.05, r"$\vec e_i(t)$", fontsize=12,
+                                lw=3.1), zorder=6)
+    ax.scatter([0], [0], s=108, color=style.PARTICLE_BLUE,
+               edgecolor="white", lw=0.96, zorder=7)
+    ax.text(0.05, -0.13, r"$i$", fontsize=16, fontweight="bold", zorder=7)
+    ax.text(head_len + 0.02, 0.05, r"$\vec e_i(t)$", fontsize=14,
             color=style.PARTICLE_BLUE, zorder=7)
 
-    arrow_len = 0.14 * 1.2
+    arrow_len = 0.14 * 1.2 * 1.2
 
     def neighbour(x, y, theta_deg, label, color=style.PARTICLE_BLUE,
                   alpha=1.0):
@@ -1402,31 +1133,28 @@ def fig_model_schematic():
         ax.annotate("",
                     xy=(x + arrow_len * np.cos(th), y + arrow_len * np.sin(th)),
                     xytext=(x, y),
-                    arrowprops=dict(arrowstyle="-|>", color=color, lw=1.6,
+                    arrowprops=dict(arrowstyle="-|>", color=color, lw=1.92,
                                     alpha=alpha), zorder=6)
-        ax.scatter([x], [y], s=42, color=color, alpha=alpha,
-                   edgecolor="white", lw=0.6, zorder=7)
-        ax.text(x + 0.05, y + 0.08, label, fontsize=11, alpha=alpha,
+        ax.scatter([x], [y], s=50, color=color, alpha=alpha,
+                   edgecolor="white", lw=0.72, zorder=7)
+        ax.text(x + 0.05, y + 0.08, label, fontsize=13, alpha=alpha,
                 zorder=7)
 
     # Repulsion neighbour: triggers a turn-away vector.
     j1 = (-0.18 * 1.2, 0.22 * 1.2)
     neighbour(*j1, theta_deg=90, label=r"$j_1$")
     nrm = np.hypot(*j1)
-    away = (-j1[0] / nrm * 0.30 * 1.2, -j1[1] / nrm * 0.30 * 1.2)
+    away = (-j1[0] / nrm * 0.30 * 1.2 * 1.2, -j1[1] / nrm * 0.30 * 1.2 * 1.2)
     ax.annotate("", xy=away, xytext=(0, 0),
-                arrowprops=dict(arrowstyle="->", color="#9c3a3a", lw=1.5,
+                arrowprops=dict(arrowstyle="->", color="#9c3a3a", lw=1.8,
                                 ls=(0, (3, 2))), zorder=6)
-    ax.text(away[0] + 0.02, away[1] - 0.06, "repulse", fontsize=10,
+    ax.text(away[0] + 0.02, away[1] - 0.06, "repulse", fontsize=12,
             color="#9c3a3a", style="italic", zorder=7)
 
-    # Alignment neighbours.
+    # Alignment neighbours (no longer restricted to a forward cone).
     neighbour(0.46 * 1.2, 0.42 * 1.2, theta_deg=20, label=r"$j_2$")
     neighbour(-0.50 * 1.2, -0.34 * 1.2, theta_deg=200, label=r"$j_3$")
-
-    # Blind-sector neighbour (rear): visible position but ignored.
-    neighbour(-0.55 * 1.2, 0.06 * 1.2, theta_deg=0, label=r"$j_b$",
-              color="#666", alpha=0.55)
+    neighbour(-0.55 * 1.2, 0.06 * 1.2, theta_deg=0, label=r"$j_4$")
 
     # Outside-R_a neighbour: position out of perception range.
     neighbour(0.85 * 1.2, 0.55 * 1.2, theta_deg=60, label=r"$j_\infty$",
@@ -1436,17 +1164,12 @@ def fig_model_schematic():
     ax.annotate(r"$R_r$",
                 xy=(R_r * np.cos(np.deg2rad(-50)),
                     R_r * np.sin(np.deg2rad(-50))),
-                xytext=(0.66, -1.14), fontsize=12,
+                xytext=(0.66, -1.14), fontsize=14,
                 arrowprops=dict(arrowstyle="-", lw=0.6, color="#444"))
     ax.annotate(r"$R_a$",
                 xy=(R_a * np.cos(np.deg2rad(-30)),
                     R_a * np.sin(np.deg2rad(-30))),
-                xytext=(1.26, -0.74), fontsize=12,
-                arrowprops=dict(arrowstyle="-", lw=0.6, color="#444"))
-
-    # Blind angle annotation.
-    ax.annotate(r"blind sector $\beta$",
-                xy=(-0.74, 0.19), xytext=(-1.74, 0.74), fontsize=12,
+                xytext=(1.26, -0.74), fontsize=14,
                 arrowprops=dict(arrowstyle="-", lw=0.6, color="#444"))
 
     # Legend (zone colours).
@@ -1455,10 +1178,8 @@ def fig_model_schematic():
               label=r"Repulsion ($d<R_r$)"),
         Patch(facecolor=ali_color, alpha=0.55, edgecolor="#3a4a78",
               label=r"Alignment ($R_r \leq d < R_a$)"),
-        Patch(facecolor=blind_color, alpha=0.65, hatch="///",
-              edgecolor="#666", label="Blind sector (ignored)"),
     ]
-    ax.legend(handles=handles, loc="upper right", fontsize=10,
+    ax.legend(handles=handles, loc="upper right", fontsize=12,
               framealpha=0.92)
 
     ax.set_xlim(-1.86, 1.86)
@@ -1466,36 +1187,251 @@ def fig_model_schematic():
     ax.set_aspect("equal")
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_title("Zonal Vicsek--Couzin update with vision cone",
-                 fontsize=12)
+    ax.set_title(r"(a) Two-zone Vicsek update "
+                 r"(full $360^\circ$ vision)",
+                 fontsize=14)
 
     fig.tight_layout()
     _save(fig, "fig_model_schematic.pdf")
 
 
+FOCAL_RED = "#c83a3a"
+REP_COLOR = "#e07b7b"
+ALI_COLOR = "#9bb8de"
+
+R_R_SCHEMA = 0.45 * 1.2   # zone radii used in panel (a)
+R_A_SCHEMA = 0.7  * 1.2
+V_VIS      = 0.40          # visualisation step: 8 x v_0 (= 0.05); the
+                           # angular update is the standard rule, only
+                           # the displacement is inflated for legibility
+
+
+def _apply_rule(pos_i, theta_i, pos_j, theta_j, R_r, R_a):
+    """Apply the model angular update to a focal particle i given
+    its neighbours j (positions and headings as arrays). Returns
+    the new heading theta_i_star (before noise). Implements exactly
+    the _zonal_update logic of vicsek.py: repulsion > alignment >
+    inertia, repulsion = atan2(-sum dy_ij/d, -sum dx_ij/d), alignment
+    = atan2(sum sin th_j, sum cos th_j) over neighbours in R_r..R_a.
+    """
+    dx = pos_j[:, 0] - pos_i[0]
+    dy = pos_j[:, 1] - pos_i[1]
+    d  = np.hypot(dx, dy)
+    rep_mask = (d > 0) & (d < R_r)
+    ali_mask = (d >= R_r) & (d < R_a)
+    if rep_mask.any():
+        rx = -np.sum(dx[rep_mask] / d[rep_mask])
+        ry = -np.sum(dy[rep_mask] / d[rep_mask])
+        return float(np.arctan2(ry, rx))
+    if ali_mask.any():
+        sx = float(np.sum(np.sin(theta_j[ali_mask])))
+        cx = float(np.sum(np.cos(theta_j[ali_mask])))
+        return float(np.arctan2(sx, cx))
+    return float(theta_i)
+
+
+def _setup_rule_pair(title_main):
+    """Two side-by-side subpanels labelled t and t+dt, same axis
+    limits and aspect. Returns (fig, ax_t, ax_tp)."""
+    fig, (ax_t, ax_tp) = plt.subplots(1, 2, figsize=(5.4, 4.4),
+                                       sharex=True, sharey=True)
+    for ax, lab in zip((ax_t, ax_tp), (r"$t$", r"$t + \delta t$")):
+        ax.set_aspect("equal")
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xlim(-1.55, 1.55)
+        ax.set_ylim(-1.45, 1.55)
+        ax.text(0.5, 1.02, lab, transform=ax.transAxes,
+                ha="center", va="bottom", fontsize=14,
+                fontweight="bold")
+    fig.suptitle(title_main, fontsize=13.5, y=0.97)
+    return fig, ax_t, ax_tp
+
+
+def _draw_zones(ax):
+    """Draw the R_r repulsion disk and the R_r..R_a alignment
+    annulus around the origin, same style as panel (a)."""
+    from matplotlib.patches import Wedge
+    rep = Wedge((0, 0), R_R_SCHEMA, 0, 360,
+                facecolor=REP_COLOR, alpha=0.55,
+                edgecolor="#9c3a3a", lw=0.9, zorder=1)
+    ali = Wedge((0, 0), R_A_SCHEMA, 0, 360,
+                width=R_A_SCHEMA - R_R_SCHEMA,
+                facecolor=ALI_COLOR, alpha=0.55,
+                edgecolor="#3a4a78", lw=0.9, zorder=1)
+    ax.add_patch(rep); ax.add_patch(ali)
+
+
+def _draw_particle(ax, pos, heading, *, color, scatter_size,
+                   arrow_len, lw, label=None, label_offset=(0.07, 0.08),
+                   label_fontsize=13, label_color=None, alpha=1.0):
+    x, y = float(pos[0]), float(pos[1])
+    tx = x + arrow_len * np.cos(heading)
+    ty = y + arrow_len * np.sin(heading)
+    ax.annotate("", xy=(tx, ty), xytext=(x, y),
+                arrowprops=dict(arrowstyle="-|>", color=color, lw=lw,
+                                alpha=alpha), zorder=6)
+    ax.scatter([x], [y], s=scatter_size, color=color, alpha=alpha,
+               edgecolor="white", lw=0.9, zorder=7)
+    if label:
+        if label_color is None:
+            label_color = color
+        ax.text(x + label_offset[0], y + label_offset[1], label,
+                fontsize=label_fontsize, color=label_color,
+                fontweight="bold", zorder=7)
+
+
+def _evolve(pos_i, theta_i, pos_j, theta_j, R_r, R_a, v_vis):
+    """Advance the whole configuration by one schematic step:
+    angular update from _apply_rule for the focal i, identity
+    update (no neighbours assumed) for each j_k, then ballistic
+    displacement with step v_vis (visualisation scale) for every
+    particle along its new heading.
+    """
+    new_th_i = _apply_rule(pos_i, theta_i, pos_j, theta_j, R_r, R_a)
+    new_pos_i = pos_i + v_vis * np.array([np.cos(new_th_i),
+                                          np.sin(new_th_i)])
+    new_pos_j = pos_j.copy()
+    new_th_j  = theta_j.copy()
+    for k in range(len(theta_j)):
+        new_pos_j[k] = pos_j[k] + v_vis * np.array(
+            [np.cos(theta_j[k]), np.sin(theta_j[k])])
+    return new_pos_i, new_th_i, new_pos_j, new_th_j
+
+
+def _render_frame(ax, pos_i, theta_i, pos_j, theta_j, j_labels):
+    """Render one frame (zones + focal + neighbours). Heading
+    vectors are scaled up by ~55-60% relative to the panel-(a)
+    defaults so they read as the dominant visual cue in the
+    paired t / t+dt frames (focal arrow_len 0.288 -> 0.45,
+    neighbour arrow_len 0.2016 -> 0.32; focal lw 3.1 -> 4.0,
+    neighbour lw 1.92 -> 2.6)."""
+    _draw_zones(ax)
+    _draw_particle(ax, pos_i, theta_i, color=FOCAL_RED,
+                   scatter_size=108, arrow_len=0.45, lw=4.0,
+                   label=r"$i$", label_offset=(0.07, -0.30),
+                   label_fontsize=15)
+    for k, (pos, th, lab) in enumerate(zip(pos_j, theta_j, j_labels)):
+        _draw_particle(ax, pos, th, color="#1f4ea1",
+                       scatter_size=50, arrow_len=0.32, lw=2.6,
+                       label=lab, label_offset=(0.06, 0.09),
+                       label_fontsize=12)
+
+
+def fig_rule_inertia():
+    """Schematic (c): inertia. No neighbour inside R_a -> the focal
+    heading is preserved and the position drifts ballistically.
+    Standard params (R_r = 0.45, R_a = 0.7, v_0 = 0.05); displacement
+    is rendered at v_vis = 0.40 (= 8 v_0) for visibility.
+    """
+    fig, ax_t, ax_tp = _setup_rule_pair(
+        r"(c) Inertia: no neighbour in $R_a$"
+        r" $\Rightarrow \vec e_i$ unchanged")
+
+    pos_i = np.array([-0.55, -0.10])
+    th_i  = np.deg2rad(20.0)
+    pos_j = np.array([
+        [ 1.05,  1.05],   # outside R_a (far up-right)
+        [-1.20,  0.90],   # outside R_a (far up-left)
+    ])
+    th_j  = np.array([np.deg2rad(160.0), np.deg2rad(-20.0)])
+
+    _render_frame(ax_t, pos_i, th_i, pos_j, th_j,
+                  j_labels=[r"$j_1$", r"$j_2$"])
+
+    new_pos_i, new_th_i, new_pos_j, new_th_j = _evolve(
+        pos_i, th_i, pos_j, th_j, R_R_SCHEMA, R_A_SCHEMA, V_VIS)
+    _render_frame(ax_tp, new_pos_i, new_th_i, new_pos_j, new_th_j,
+                  j_labels=[r"$j_1$", r"$j_2$"])
+
+    ax_tp.plot([pos_i[0], new_pos_i[0]],
+               [pos_i[1], new_pos_i[1]],
+               ls=":", color="#444", lw=0.9, zorder=2)
+
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    _save(fig, "fig_rule_inertia.pdf")
+
+
+def fig_rule_repulsion():
+    """Schematic (d): repulsion. A neighbour j_1 sits inside R_r;
+    the focal heading at t+dt points away from it
+    (e_i^* = -hat(x_{j1} - x_i)). Standard params; v_vis = 0.40.
+    """
+    fig, ax_t, ax_tp = _setup_rule_pair(
+        r"(d) Repulsion: $d_{ij_1}<R_r$"
+        r" $\Rightarrow \vec e_i^{\,\star} = -\widehat{x_{j_1}-x_i}$")
+
+    pos_i = np.array([0.0, 0.0])
+    th_i  = np.deg2rad(45.0)
+    pos_j = np.array([
+        [-0.22,  0.27],   # inside R_r -> triggers repulsion
+        [ 0.55, -0.25],   # inside alignment annulus (overridden)
+        [ 1.10,  0.90],   # outside R_a
+    ])
+    th_j  = np.array([np.deg2rad(110.0),
+                      np.deg2rad(  0.0),
+                      np.deg2rad(-90.0)])
+
+    _render_frame(ax_t, pos_i, th_i, pos_j, th_j,
+                  j_labels=[r"$j_1$", r"$j_2$", r"$j_3$"])
+
+    new_pos_i, new_th_i, new_pos_j, new_th_j = _evolve(
+        pos_i, th_i, pos_j, th_j, R_R_SCHEMA, R_A_SCHEMA, V_VIS)
+    _render_frame(ax_tp, new_pos_i, new_th_i, new_pos_j, new_th_j,
+                  j_labels=[r"$j_1$", r"$j_2$", r"$j_3$"])
+
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    _save(fig, "fig_rule_repulsion.pdf")
+
+
+def fig_rule_alignment():
+    """Schematic (e): alignment. No neighbour in R_r; three
+    neighbours sit in the alignment annulus, so the focal heading
+    at t+dt is the circular mean of their headings. Standard params;
+    v_vis = 0.40.
+    """
+    fig, ax_t, ax_tp = _setup_rule_pair(
+        r"(e) Alignment: $R_r\!\leq\! d_{ij}\!<\!R_a$"
+        r" $\Rightarrow \vec e_i^{\,\star} ="
+        r" \mathrm{atan2}(\!\sum\!\sin\theta_j,\!\sum\!\cos\theta_j)$")
+
+    pos_i = np.array([0.0, 0.0])
+    th_i  = np.deg2rad(-30.0)
+    pos_j = np.array([
+        [ 0.55,  0.40],   # in alignment annulus
+        [-0.58,  0.28],   # in alignment annulus
+        [ 0.10, -0.62],   # in alignment annulus
+        [ 1.20,  0.95],   # outside R_a (irrelevant)
+    ])
+    th_j  = np.array([np.deg2rad( 30.0),
+                      np.deg2rad( 50.0),
+                      np.deg2rad( 40.0),
+                      np.deg2rad(180.0)])
+
+    _render_frame(ax_t, pos_i, th_i, pos_j, th_j,
+                  j_labels=[r"$j_1$", r"$j_2$", r"$j_3$", r"$j_4$"])
+
+    new_pos_i, new_th_i, new_pos_j, new_th_j = _evolve(
+        pos_i, th_i, pos_j, th_j, R_R_SCHEMA, R_A_SCHEMA, V_VIS)
+    _render_frame(ax_tp, new_pos_i, new_th_i, new_pos_j, new_th_j,
+                  j_labels=[r"$j_1$", r"$j_2$", r"$j_3$", r"$j_4$"])
+
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+    _save(fig, "fig_rule_alignment.pdf")
+
+
 def main():
     fig_noise_pdf()
     fig_model_schematic()
+    fig_rule_inertia()
+    fig_rule_repulsion()
+    fig_rule_alignment()
     fig_snapshots()
-    # fig_phase (single-L phi/chi/U4 vs eta) is superseded by fig_fss.
 
     npz_3d = DATA / "sweep_3d.npz"
     if npz_3d.exists():
         fig_3d_phase(npz_3d)
     else:
         print(f"[warn] {npz_3d} not found -- run run_3d_sweep.py first")
-
-    npz_hys = DATA / "hysteresis.npz"
-    if npz_hys.exists():
-        fig_hysteresis(npz_hys)
-    else:
-        print(f"[warn] {npz_hys} not found -- run run_hysteresis.py first")
-
-    npz_gnf = DATA / "gnf.npz"
-    if npz_gnf.exists():
-        fig_gnf(npz_gnf)
-    else:
-        print(f"[warn] {npz_gnf} not found -- run run_gnf.py first")
 
     npz_bands = DATA / "bands.npz"
     if npz_bands.exists():
@@ -1510,23 +1446,13 @@ def main():
         print(f"[warn] {npz_corr} not found -- "
               "run run_correlations.py first")
 
-    npz_cl = DATA / "clusters.npz"
-    if npz_cl.exists():
-        fig_clusters(npz_cl)
-    else:
-        print(f"[warn] {npz_cl} not found -- run run_clusters.py first")
-
     npz_diff = DATA / "diffusion.npz"
-    if npz_diff.exists():
-        fig_diffusion(npz_diff)
+    npz_cl = DATA / "clusters.npz"
+    if npz_diff.exists() and npz_cl.exists():
+        fig_diffusion(npz_diff, npz_cl)
     else:
-        print(f"[warn] {npz_diff} not found -- run run_diffusion.py first")
-
-    npz_cal = DATA / "calibrated_sweep.npz"
-    if npz_cal.exists():
-        fig_calibrated(npz_cal)
-    else:
-        print(f"[warn] {npz_cal} not found -- run run_calibrated.py first")
+        print("[warn] diffusion.npz / clusters.npz not found -- "
+              "run run_diffusion.py and run_clusters.py first")
 
     npz_rob = DATA / "robustness.npz"
     if npz_rob.exists():
@@ -1573,29 +1499,6 @@ def main():
         fig_orderpdf_k(npz_opk, npz_op)
     elif not npz_opk.exists():
         print(f"[warn] {npz_opk} not found -- run run_orderpdf_k.py")
-
-    npz_ap = DATA / "adaptive_pilot.npz"
-    if npz_ap.exists():
-        fig_adaptive_pilot(npz_ap)
-    else:
-        print(f"[warn] {npz_ap} not found -- run run_adaptive_pilot.py")
-
-    # Synthesis figure: needs hysteresis, bands, correlations,
-    # diffusion, and fss_sweep all present.
-    needed = ["hysteresis.npz", "bands.npz", "correlations.npz",
-              "diffusion.npz", "fss_sweep.npz"]
-    if all((DATA / n).exists() for n in needed):
-        fig_synthesis(DATA)
-    else:
-        missing = [n for n in needed if not (DATA / n).exists()]
-        print(f"[warn] synthesis missing: {missing}")
-
-    npz_fss = DATA / "fss_sweep.npz"
-    if npz_fss.exists():
-        fig_fss(npz_fss)
-    else:
-        print(f"[warn] {npz_fss} not found -- run run_fss_sweep.py first")
-
 
 if __name__ == "__main__":
     main()

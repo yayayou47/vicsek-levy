@@ -1,22 +1,22 @@
 """
-Vicsek-Couzin 2D model with optional alpha-stable angular noise.
+Two-zone Vicsek 2D model with optional alpha-stable angular noise.
 
-Each particle has three behavioural zones (Couzin et al., J. Theor.
-Biol. 2002), within a vision cone (blind sector at the rear):
+Each particle has two behavioural zones (after Couzin et al., J.
+Theor. Biol. 2002, but with full 360 deg vision, no blind sector):
 
   * repulsion zone   d < R_r          : turn away from neighbours
   * alignment zone   R_r <= d < R_a   : align with neighbours' heading
   * outside R_a                       : no interaction
 
 Decision order: repulsion is checked first; if at least one repulsion
-neighbour is visible, the particle turns away from them (sum of unit
+neighbour is present, the particle turns away from them (sum of unit
 vectors pointing away). Otherwise, if at least one alignment neighbour
-is visible, the particle copies their mean heading. Otherwise, the
+is present, the particle copies their mean heading. Otherwise, the
 particle keeps its previous heading. Symmetric alpha-stable noise is
 then added in all cases.
 
 xi_i ~ S_alpha(scale=eta, beta=0). alpha=2 recovers Gaussian; alpha<2
-introduces heavy tails ("Levy-Vicsek-Couzin").
+introduces heavy tails ("Levy two-zone Vicsek").
 
 Spatial neighbour search uses a linked-cell list, O(N) per step. Hot
 loops are JIT-compiled with Numba.
@@ -59,12 +59,11 @@ def _zonal_update(
     L: float,
     R_r: float,
     R_a: float,
-    blind_cos: float,
     head: np.ndarray,
     nxt: np.ndarray,
     n_cell: int,
 ) -> np.ndarray:
-    """Repulsion / alignment / inertia update with vision cone."""
+    """Repulsion / alignment / inertia update, full 360 deg vision."""
     N = x.shape[0]
     new_theta = np.empty(N)
     cell_size = L / n_cell
@@ -75,8 +74,6 @@ def _zonal_update(
     for i in prange(N):
         ci = int(x[i] / cell_size) % n_cell
         cj = int(y[i] / cell_size) % n_cell
-        hcx = np.cos(theta[i])
-        hcy = np.sin(theta[i])
         rep_x = 0.0
         rep_y = 0.0
         n_rep = 0
@@ -102,18 +99,15 @@ def _zonal_update(
                             dy += L
                         d2 = dx * dx + dy * dy
                         if 0.0 < d2 < Ra2:
-                            d = np.sqrt(d2)
-                            ux = dx / d
-                            uy = dy / d
-                            if (hcx * ux + hcy * uy) >= blind_cos:
-                                if d2 < Rr2:
-                                    rep_x -= ux
-                                    rep_y -= uy
-                                    n_rep += 1
-                                else:
-                                    ali_sx += np.sin(theta[k])
-                                    ali_cx += np.cos(theta[k])
-                                    n_ali += 1
+                            if d2 < Rr2:
+                                d = np.sqrt(d2)
+                                rep_x -= dx / d
+                                rep_y -= dy / d
+                                n_rep += 1
+                            else:
+                                ali_sx += np.sin(theta[k])
+                                ali_cx += np.cos(theta[k])
+                                n_ali += 1
                     k = nxt[k]
         if n_rep > 0:
             new_theta[i] = np.arctan2(rep_y, rep_x)
@@ -148,10 +142,8 @@ def _zonal_update_np(
     L: float,
     R_r: float,
     R_a: float,
-    blind_cos: float,
 ) -> np.ndarray:
     """Vectorised O(N^2) NumPy fallback when Numba is unavailable."""
-    halfL = 0.5 * L
     dx = x[None, :] - x[:, None]
     dy = y[None, :] - y[:, None]
     dx -= L * np.round(dx / L)
@@ -162,11 +154,8 @@ def _zonal_update_np(
     with np.errstate(invalid="ignore"):
         ux = dx / d
         uy = dy / d
-    hcx = np.cos(theta)[:, None]
-    hcy = np.sin(theta)[:, None]
-    visible = (hcx * ux + hcy * uy) >= blind_cos
-    rep_mask = visible & (d2 < R_r * R_r)
-    ali_mask = visible & (d2 >= R_r * R_r) & (d2 < R_a * R_a)
+    rep_mask = d2 < R_r * R_r
+    ali_mask = (d2 >= R_r * R_r) & (d2 < R_a * R_a)
     n_rep = rep_mask.sum(axis=1)
     rep_x = -(rep_mask * ux).sum(axis=1)
     rep_y = -(rep_mask * uy).sum(axis=1)
@@ -191,9 +180,8 @@ class VicsekParams:
     N: int = 2000
     L: float = 15.0
     v0: float = 0.05
-    R_r: float = 0.5         # repulsion radius (absolute)
+    R_r: float = 0.45        # repulsion radius (absolute)
     R_a: float = 0.7         # alignment outer radius (absolute)
-    beta: float = 30.0       # blind-sector full angular width (degrees)
     eta: float = 0.3
     alpha: float = 2.0       # Levy stability index of the angular noise
     seed: int = 0
@@ -208,11 +196,6 @@ class Vicsek:
         self.theta = self.rng.uniform(-np.pi, np.pi, size=p.N)
         self.R_r = p.R_r
         self.R_a = p.R_a
-        # beta is the full angular width of the rear blind sector. A
-        # neighbour at angular offset psi from the heading is visible iff
-        # |psi| <= 180 - beta/2, i.e. cos(psi) >= -cos(beta/2).
-        half = np.deg2rad(0.5 * p.beta)
-        self.blind_cos = -np.cos(half)
         self.n_cell = max(1, int(p.L / max(self.R_a, 1e-9)))
         self.t = 0
 
@@ -222,13 +205,13 @@ class Vicsek:
             head, nxt = _build_cells(self.x, self.y, p.L, self.n_cell)
             target = _zonal_update(
                 self.x, self.y, self.theta, p.L,
-                self.R_r, self.R_a, self.blind_cos,
+                self.R_r, self.R_a,
                 head, nxt, self.n_cell,
             )
         else:
             target = _zonal_update_np(
                 self.x, self.y, self.theta, p.L,
-                self.R_r, self.R_a, self.blind_cos,
+                self.R_r, self.R_a,
             )
         xi = stable_rvs(p.alpha, p.eta, p.N, self.rng)
         self.theta = (target + xi + np.pi) % (2 * np.pi) - np.pi

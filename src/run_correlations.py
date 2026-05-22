@@ -46,7 +46,7 @@ def pair_histograms(x, y, theta, L, bins, r_max):
 
 def main():
     N, L, v0 = 500, 15.0, 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm, n_meas, n_skip = 1500, 1000, 50
     n_bins = 40
     r_max = 7.0

@@ -74,7 +74,7 @@ def measure(p: VicsekParams, n_warm: int, n_meas: int) -> tuple:
 
 def main():
     N, L, v0 = 500, 15.0, 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm, n_meas = 1500, 1500
     seeds = [11, 23, 41]
 

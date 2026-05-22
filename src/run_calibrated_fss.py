@@ -31,7 +31,7 @@ def main():
     sigma = 500.0 / 15.0**2
     Ls = np.array([15.0, 22.0, 30.0, 45.0])
     Ns = (sigma * Ls**2).round().astype(int)
-    R_r_abs, R_a_abs = 0.5, 0.7
+    R_r_abs, R_a_abs = 0.45, 0.7
     alphas = np.array([1.0, 2.0])
     # V grid: focused on the L=15 chi-peak (V ~ 0.04). The peak in V drifts
     # with L, so a refined small-V scan is essential.

@@ -23,7 +23,8 @@ from vicsek import Vicsek, VicsekParams
 
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE.parent / "data"
+V1_ROOT = HERE.parent.parent if HERE.parent.name == "notes" else HERE.parent
+DATA = V1_ROOT / "data"
 DATA.mkdir(exist_ok=True)
 
 
@@ -38,17 +39,25 @@ def project_and_hist(x, y, theta_avg, L, n_bins):
 
 
 def main():
-    N, L, v0 = 2000, 30.0, 0.05
-    R_r, R_a = 0.5, 0.7
-    n_warm = 2500
-    n_meas = 5000
+    # Bumped from (L = 30, N = 2000) to (L = 91, N = 18384) so the
+    # bands data matches the L = 91 box used for the order
+    # snapshots; sigma = 2.22 is preserved.
+    L, sigma, v0 = 91.0, 2.22, 0.05
+    N = int(round(sigma * L * L))
+    R_r, R_a = 0.45, 0.7
+    n_warm = 4000
+    n_meas = 8000
     n_skip = 25
     n_bins = 60
     seeds = [11, 23, 41]
 
-    # Near-critical (ordered side) for each alpha: eta just below the
-    # FSS-located eta_c.
-    cases = [(2.0, 0.13), (1.5, 0.08), (1.0, 0.04)]
+    # Near-critical operating point per alpha, picked from an
+    # eta-scan at L = 91 (scan_bands_eta.py): alpha = 2.0 is at
+    # eta = 0.15 (just under the FSS-located eta_c), where the
+    # band soliton nucleates most clearly (band peak ~1.18 vs
+    # 1.07 at the previous eta = 0.13). The two heavy-tail cases
+    # are kept at their FSS-located near-critical eta.
+    cases = [(2.0, 0.15), (1.5, 0.08), (1.0, 0.04)]
 
     profiles = np.zeros((len(cases), n_bins))
     band_idx = np.zeros(len(cases))

@@ -37,19 +37,18 @@ class TopoParams:
     N: int = 500
     L: float = 15.0
     v0: float = 0.05
-    R_r: float = 0.5
+    R_r: float = 0.45
     k: int = 6
-    beta: float = 30.0
     eta: float = 0.3
     alpha: float = 2.0
     seed: int = 0
 
 
 @njit(cache=True, parallel=True)
-def _topo_update(x, y, theta, knn, L, R_r, k_use, blind_cos):
+def _topo_update(x, y, theta, knn, L, R_r, k_use):
     """For each particle, sweep its (k_max) nearest neighbours; identify
     repulsion neighbours (d < R_r) and alignment neighbours (the next
-    k_use that are not in the repulsion zone), within the vision cone.
+    k_use that are not in the repulsion zone). Full 360 deg vision.
     """
     N = x.shape[0]
     new_theta = np.empty(N)
@@ -57,8 +56,6 @@ def _topo_update(x, y, theta, knn, L, R_r, k_use, blind_cos):
     Rr2 = R_r * R_r
     k_max = knn.shape[1]
     for i in prange(N):
-        hcx = np.cos(theta[i])
-        hcy = np.sin(theta[i])
         rep_x = 0.0
         rep_y = 0.0
         n_rep = 0
@@ -82,14 +79,10 @@ def _topo_update(x, y, theta, knn, L, R_r, k_use, blind_cos):
             d2 = dx * dx + dy * dy
             if d2 <= 0.0:
                 continue
-            d = np.sqrt(d2)
-            ux = dx / d
-            uy = dy / d
-            if hcx * ux + hcy * uy < blind_cos:
-                continue
             if d2 < Rr2:
-                rep_x -= ux
-                rep_y -= uy
+                d = np.sqrt(d2)
+                rep_x -= dx / d
+                rep_y -= dy / d
                 n_rep += 1
             elif n_ali < k_use:
                 ali_s += np.sin(theta[j])
@@ -111,8 +104,6 @@ class TopoVicsek:
         self.x = self.rng.uniform(0, p.L, size=p.N)
         self.y = self.rng.uniform(0, p.L, size=p.N)
         self.theta = self.rng.uniform(-np.pi, np.pi, size=p.N)
-        half = np.deg2rad(0.5 * p.beta)
-        self.blind_cos = -np.cos(half)
         # Query k_max nearest -- enough to absorb a few repulsion
         # neighbours plus the topological alignment quota.
         self.k_max = max(p.k + 4, 12)
@@ -128,7 +119,7 @@ class TopoVicsek:
         knn = knn.astype(np.int64)
         target = _topo_update(
             self.x, self.y, self.theta, knn,
-            L, p.R_r, p.k, self.blind_cos,
+            L, p.R_r, p.k,
         )
         xi = stable_rvs(p.alpha, p.eta, p.N, self.rng)
         self.theta = (target + xi + np.pi) % (2 * np.pi) - np.pi

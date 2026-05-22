@@ -42,7 +42,7 @@ def cluster_sizes(x, y, L, R):
 
 def main():
     N, L, v0 = 500, 15.0, 0.05
-    R_r, R_a = 0.5, 0.7
+    R_r, R_a = 0.45, 0.7
     n_warm, n_meas, n_skip = 1500, 2000, 25
     seeds = [11, 23, 41]
 

@@ -13,8 +13,9 @@ import style
 
 
 HERE = Path(__file__).resolve().parent
-DATA = HERE.parent / "data"
-FIG = HERE.parent / "figures"
+V1_ROOT = HERE.parent.parent if HERE.parent.name == "notes" else HERE.parent
+DATA = V1_ROOT / "data"
+FIG = V1_ROOT / "figures"
 style.apply()
 
 
@@ -27,14 +28,18 @@ def _save(fig, name):
 
 
 def main():
-    fig, axes = plt.subplots(2, 3, figsize=(style.DOUBLE_COL[0], 4.6))
+    # Reviewer-3 R5: simplified to 4 panels (a, b, d, f). The
+    # correlation length (c) and angular diffusivity (e) are now in
+    # SI; the four retained panels are the ones whose alpha
+    # dependence is qualitatively most distinctive.
+    fig, axes = plt.subplots(2, 2, figsize=(style.DOUBLE_COL[0], 4.8))
     axes = axes.flatten()
     palette = ["#3aa040", "#d76f3a", "#1f4ea1"]
     rng = np.random.default_rng(0)
 
     def styled(ax, title):
         ax.set_xlabel(r"$\alpha$")
-        ax.set_title(title, fontsize=8)
+        ax.set_title(title)
         ax.set_xticks([1.0, 1.5, 2.0])
 
     def _bin_phi(eta_arr, phi_arr, eta_grid):
@@ -100,21 +105,9 @@ def main():
     ax.set_ylabel(r"band index $b$")
     styled(ax, "(b) band amplitude")
 
-    # 3. Correlation length xi
+    # 3. Spatial-MSD exponent with fit-window jackknife error
+    #    (originally panel (d); panel (c) correlation length moved to SI)
     ax = axes[2]
-    zc = np.load(DATA / "correlations.npz")
-    alpha_c = zc["alphas"]; eta_c = zc["etas"]; xi = zc["xi"]
-    near_crit = {1.0: 0.05, 1.5: 0.10, 2.0: 0.15}
-    xi_pts = []
-    for ia, a in enumerate(alpha_c):
-        ie = int(np.argmin(np.abs(eta_c - near_crit[float(a)])))
-        xi_pts.append(xi[ia, ie])
-    ax.plot(alpha_c, xi_pts, "D-", color=palette[2], ms=5, lw=1.2)
-    ax.set_ylabel(r"$\xi$ at $\eta_c(\alpha)$")
-    styled(ax, "(c) correlation length")
-
-    # 4. Spatial-MSD exponent with fit-window jackknife error
-    ax = axes[3]
     zd = np.load(DATA / "diffusion.npz")
     a_d = zd["alphas"]; eta_d = zd["etas"]
     t = zd["t"].astype(float); msd_x = zd["msd_x"]
@@ -143,30 +136,12 @@ def main():
     ax.axhline(1.0, ls=":", c="grey", lw=0.6, label="diffusive")
     ax.axhline(2.0, ls="--", c="grey", lw=0.6, label="ballistic")
     ax.set_ylabel(r"$\gamma_x$ at $\eta = 0.15$")
-    ax.legend(fontsize=6, loc="lower right")
-    styled(ax, "(d) spatial MSD exponent")
+    ax.legend(loc="lower right")
+    styled(ax, "(c) spatial MSD exponent")
 
-    # 5. Angular diffusivity with bootstrap error on the fit-window mean
-    ax = axes[4]
-    msd_th = zd["msd_theta"]
-    D_th = []; D_se = []
-    n_b = 400
-    idx_fit = np.where(fit)[0]
-    for ia in range(len(a_d)):
-        y = msd_th[ia, ie][fit]
-        D_th.append(float(y.mean() / t[fit].mean()))
-        boot = np.empty(n_b)
-        for b in range(n_b):
-            sample = rng.choice(len(y), size=len(y), replace=True)
-            boot[b] = y[sample].mean() / t[idx_fit[sample]].mean()
-        D_se.append(float(boot.std()))
-    ax.errorbar(a_d, D_th, yerr=D_se, fmt="^-",
-                color=palette[1], ms=5, lw=1.2, capsize=3)
-    ax.set_ylabel(r"$D_\theta$ at $\eta = 0.15$")
-    styled(ax, "(e) angular diffusivity")
-
-    # 6. chi_max at L = 64 (5-seed bootstrap)
-    ax = axes[5]
+    # 4. chi_max at L = 64 (5-seed bootstrap)
+    #    (originally panel (f); panel (e) angular diffusivity to SI)
+    ax = axes[3]
     z64 = np.load(DATA / "fss_L64.npz")
     a_f = z64["alphas"]
     chi_64_per_seed = z64["chi"].max(axis=1)  # (alpha, seed)
@@ -175,7 +150,7 @@ def main():
     ax.errorbar(a_f, chi_mean, yerr=chi_se, fmt="*-",
                 color=palette[2], ms=7, lw=1.2, capsize=3)
     ax.set_ylabel(r"$\chi_{\max}$ at $L = 64$")
-    styled(ax, "(f) FSS susceptibility peak")
+    styled(ax, "(d) FSS susceptibility peak")
 
     fig.tight_layout()
     _save(fig, "fig_synthesis.pdf")

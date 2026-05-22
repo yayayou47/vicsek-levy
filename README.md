@@ -82,91 +82,104 @@ cd src/
 python run_<driver>.py
 ```
 
+`fss_runner.py` is a shared FSS helper (not a driver): it holds the
+`FSSConfig` dataclass and the parallel `run_fss_sweep` machinery that the
+thin per-$L$ FSS wrappers below import.
+
 | Driver | Output | Purpose |
 |---|---|---|
 | **Phase diagrams**            |                            |                                                                                       |
-| `run_phase.py`                | `phase_sweep.npz`          | $\varphi(\eta,\alpha)$ time series at $L=15$.                                          |
 | `run_3d_sweep.py`             | `sweep_3d.npz`             | $\varphi(\eta, R_r, R_a)$ at three $\alpha$.                                          |
 | `run_phasecurve.py`           | `phase_curve.npz`          | Smooth $\eta_c(\alpha)$ on six $\alpha$, three seeds.                                  |
+| `run_gnf.py`                  | `gnf.npz`                  | Giant number fluctuations, $L=30$ (panel (d) of the phase-curve figure).              |
 | **FSS — metric model**        |                            |                                                                                       |
-| `run_fss_sweep.py`            | `fss_sweep.npz`            | First-pass FSS, four sizes, mean only (legacy).                                       |
-| `run_fss_perseed.py`          | `fss_perseed.npz`          | Per-seed FSS (5 seeds × 4 sizes) — main FSS source.                                   |
-| `run_fss_L64.py`              | `fss_L64.npz`              | Extension to $L=64$ (5 seeds), refined $\eta$ grid.                                   |
-| `run_fss_standard_vicsek.py`  | `fss_standard.npz`         | Sanity check with the canonical single-radius Vicsek update ($R_r=0$).                |
+| `run_fss_smallL.py`           | `fss_L{15,22,30,45,64}.warm20000.npz` | Per-seed FSS at the five small sizes with the long warm-up.               |
+| `run_fss_L91.py`              | `fss_L91.npz`              | Intermediate FSS point at $L=91$ (thin wrapper around `fss_runner`).                   |
+| `run_fss_L128.py`             | `fss_L128.npz`             | FSS endpoint at $L=128$ (thin wrapper around `fss_runner`).                            |
+| `run_fss_L64.py`              | `fss_L64.npz`              | Pilot $L=64$ run, refined $\eta$ grid; feeds the synthesis figure.                    |
 | **Calibration**               |                            |                                                                                       |
 | `run_calibrated.py`           | `calibrated_sweep.npz`     | $\varphi(V), \chi(V)$ at $L=15$ for the wrapped circular variance $V$.                |
-| `run_calibrated_fss.py`       | `fss_calibrated.npz`,<br>`fss_calibrated_v2.npz` | Multi-$L$ FSS at fixed $V$ (controls for amplitude effects).                          |
+| `run_calibrated_fss.py`       | `fss_calibrated_v2.npz`    | Multi-$L$ FSS at fixed $V$ (controls for amplitude effects).                          |
+| `run_calibrated_anyL.py`      | `fss_calibrated_L{L}.npz`  | $V$-calibrated FSS at a single user-specified $L$ ($L\in\{91,128\}$ extensions).       |
+| `run_calibrated_L64.py`       | `fss_calibrated_L64.npz`   | $V$-calibrated FSS at $L=64$, extending the calibrated lever.                          |
 | **Bulk-fluid signatures**     |                            |                                                                                       |
-| `run_gnf.py`                  | `gnf.npz`                  | Giant number fluctuations, $L=30$.                                                    |
-| `run_gnf_L45.py`              | `gnf_L45.npz`              | Same observable at $L=45$ (size-dependence check).                                    |
 | `run_correlations.py`         | `correlations.npz`         | Velocity correlation $C_v(r)$ and pair correlation $g(r)$.                            |
-| `run_clusters.py`             | `clusters.npz`             | Connected-component cluster-size distribution $P(s)$.                                 |
+| `run_clusters.py`             | `clusters.npz`             | Connected-component cluster-size distribution (feeds the single-particle figure).      |
 | `run_bands.py`                | `bands.npz`                | Travelling-band detection (metric).                                                   |
 | `run_bands_topo.py`           | `bands_topo.npz`           | Travelling-band detection (topological — confirms band-free).                         |
 | `run_diffusion.py`            | `diffusion.npz`            | Single-particle angular and spatial MSD.                                              |
 | **Hysteresis**                |                            |                                                                                       |
-| `run_hysteresis.py`           | `hysteresis.npz`           | Slow $\eta$-ramp loop, $T_{up}=T_{dn}=8000$.                                          |
+| `run_hysteresis.py`           | `hysteresis.npz`           | $\eta$-ramp loop, $T_{up}=T_{dn}=8000$.                                              |
 | `run_hysteresis_slow.py`      | `hysteresis_slow.npz`      | Slower ramp ($T=32000$) for ramp-speed control.                                       |
 | **Order-parameter PDFs**      |                            |                                                                                       |
 | `run_orderpdf.py`             | `orderpdf.npz`             | $P(\langle\varphi\rangle)$ at four corners (metric/topological × $\alpha\in\{1,2\}$). |
 | `run_orderpdf_k.py`           | `orderpdf_k.npz`           | $P(\langle\varphi\rangle)$ for $k\in\{4,6,10\}$ (topological).                         |
+| `run_order_snapshots.py`      | `order_snapshots.npz`      | Particle snapshots for the 2×3 ordered / near-critical / disordered grid.              |
 | **Topological alignment**     |                            |                                                                                       |
-| `run_topological.py`          | `topo_fss.npz`             | Mini-FSS, 4 sizes × 2 α × 5 seeds.                                                    |
+| `run_topological.py`          | `topo_fss.npz`             | Mini-FSS, 4 sizes × 2 $\alpha$ × 5 seeds.                                              |
+| `run_topo_a15_smallL.py`      | `topo_fss_a15.npz`         | $\alpha=1.5$ slice that harmonises `topo_fss.npz` to three $\alpha$.                   |
+| `run_topo_anyL.py`            | `topo_L{L}_a3.npz`         | Topological FSS at a single $L$ ($L\in\{64,91,128\}$ extensions, 3 $\alpha$).          |
+| `run_topo_L64.py`             | `topo_L64.npz`             | Topological FSS at $L=64$ (legacy 2-$\alpha$ fallback for the extension).              |
 | `run_topo_k.py`               | `topo_k_scan.npz`          | $\chi_{\max}(L)$ versus $k$ at $\alpha=1$.                                            |
 | **Robustness**                |                            |                                                                                       |
 | `run_robustness.py`           | `robustness.npz`           | $\varphi(\eta)$ under $v_0,\sigma$ variations × 5 seeds.                              |
 | **Adaptive noise**            |                            |                                                                                       |
 | `run_adaptive_perseed.py`     | `adaptive_perseed.npz`     | Density-adaptive $\alpha_i(\rho_{\rm local})$ FSS pilot, 5 seeds.                      |
-| **Movies (not figures)**      |                            |                                                                                       |
-| `run_movie.py`                | mp4                        | Single-regime movie.                                                                  |
-| `run_movie_composite.py`      | mp4                        | Four-regime composite.                                                                |
-| `manim_exposition.py`         | mp4                        | Manim figure-centric exposition (companion video).                                    |
-
-The `*.bak` files in `data/` are pre-rerun snapshots and are excluded from
-the repository (`.gitignore`).
+| `run_adaptive_extension.py`   | `adaptive_perseed_ext.npz` | Extends the adaptive pilot to $L\in\{64,91,128\}$ for the 7-size lever.                |
 
 ---
 
 ## Figure builders (`src/`) → `figures/`
 
-Three builder modules, each importing the simulators and reading from
+Four builder modules, each importing the simulators and reading from
 `data/`. Run order does not matter: every builder is independent.
 
 ```bash
 cd src/
-python -c "from pathlib import Path; import make_figures as m; m.fig_gnf(Path('../data/gnf.npz'))"
+python make_figures.py        # batch builder for the main + SI figures
 python make_figures_v2.py     # rebuilds fig_fss.pdf and fig_calibrated.pdf
-python make_figures_v3.py     # rebuilds fig_hysteresis.pdf and fig_adaptive_pilot.pdf
+python make_figures_v3.py     # fig_hysteresis, fig_adaptive_pilot, fig_order_snapshots
 python make_synthesis_v2.py   # rebuilds fig_synthesis.pdf
 ```
 
-`make_figures.py` exposes one function per figure (e.g. `fig_gnf`,
+`make_figures.py` exposes one function per figure (e.g. `fig_phase_curve`,
 `fig_topological`, `fig_robustness`); see its `main()` for the canonical
 calling sequence.
 
+The repository ships exactly the 23 figures of the submitted manuscript and
+its Supplemental Material. Since the original release the cluster figure was
+merged into the single-particle diffusion figure and the giant-number-
+fluctuations figure was merged into the phase-curve figure, so `clusters.npz`
+and `gnf.npz` are still produced and read as data even though no standalone
+`fig_clusters` / `fig_gnf` exist any more.
+
 | Figure (PDF + PNG)            | Builder & function                        | Data archives                                            |
 |---|---|---|
-| `fig_noise_pdf`               | `make_figures.fig_noise_pdf`              | (drawn from `noise.py`)                                  |
+| **Main text**                 |                                           |                                                          |
 | `fig_model_schematic`         | `make_figures.fig_model_schematic`        | (drawn programmatically)                                 |
-| `fig_phase_curve`             | `make_figures.fig_phase_curve`            | `phase_curve.npz`                                        |
-| `fig_3d_phase`                | `make_figures.fig_3d_phase`               | `sweep_3d.npz`                                           |
-| `fig_fss`                     | `make_figures_v2.fig_fss_alpha2`          | `fss_perseed.npz`, `fss_L64.npz`                         |
-| `fig_calibrated`              | `make_figures_v2.fig_calibrated`          | `calibrated_sweep.npz`, `fss_calibrated_v2.npz`          |
-| `fig_gnf`                     | `make_figures.fig_gnf`                    | `gnf.npz`                                                |
-| `fig_correlations`            | `make_figures.fig_correlations`           | `correlations.npz`                                       |
-| `fig_clusters`                | `make_figures.fig_clusters`               | `clusters.npz`                                           |
-| `fig_bands`                   | `make_figures.fig_bands`                  | `bands.npz`                                              |
-| `fig_bands_topo`              | `make_figures.fig_bands_topo`             | `bands_topo.npz`                                         |
-| `fig_diffusion`               | `make_figures.fig_diffusion`              | `diffusion.npz`                                          |
+| `fig_noise_pdf`               | `make_figures.fig_noise_pdf`              | (drawn from `noise.py`)                                  |
+| `fig_rule_inertia`            | `make_figures.fig_rule_inertia`           | (drawn programmatically)                                 |
+| `fig_rule_repulsion`          | `make_figures.fig_rule_repulsion`         | (drawn programmatically)                                 |
+| `fig_rule_alignment`          | `make_figures.fig_rule_alignment`         | (drawn programmatically)                                 |
+| `fig_order_snapshots`         | `make_figures_v3.fig_order_snapshots`     | `order_snapshots.npz`                                    |
+| `fig_fss`                     | `make_figures_v2.fig_fss`                 | `fss_L{15,22,30,45,64}.warm20000.npz`, `fss_L91.npz`, `fss_L128.npz` |
 | `fig_hysteresis`              | `make_figures_v3.fig_hysteresis`          | `hysteresis.npz`, `hysteresis_slow.npz`                  |
+| `fig_calibrated`              | `make_figures_v2.fig_calibrated`          | `calibrated_sweep.npz`, `fss_calibrated_v2.npz`, `fss_calibrated_L{64,91,128}.npz` |
+| `fig_phase_curve`             | `make_figures.fig_phase_curve`            | `phase_curve.npz`, `gnf.npz`                             |
+| `fig_bands`                   | `make_figures.fig_bands`                  | `bands.npz`                                              |
+| `fig_correlations`            | `make_figures.fig_correlations`           | `correlations.npz`                                       |
+| `fig_diffusion`               | `make_figures.fig_diffusion`              | `diffusion.npz`, `clusters.npz`                          |
+| `fig_topological`             | `make_figures.fig_topological`            | `topo_fss.npz`, `topo_fss_a15.npz`, `topo_L{64,91,128}_a3.npz`, `topo_L64.npz` |
 | `fig_orderpdf`                | `make_figures.fig_orderpdf`               | `orderpdf.npz`                                           |
-| `fig_orderpdf_k`              | `make_figures.fig_orderpdf_k`             | `orderpdf_k.npz`, `orderpdf.npz`                         |
-| `fig_topological`             | `make_figures.fig_topological`            | `topo_fss.npz`                                           |
-| `fig_topo_k`                  | `make_figures.fig_topo_k`                 | `topo_k_scan.npz`                                        |
-| `fig_robustness`              | `make_figures.fig_robustness`             | `robustness.npz`                                         |
-| `fig_adaptive_pilot`          | `make_figures_v3.fig_adaptive_pilot`      | `adaptive_perseed.npz`                                   |
-| `fig_synthesis`               | `make_synthesis_v2.main`                  | (multi-archive aggregate)                                |
+| **Supplemental Material**     |                                           |                                                          |
+| `fig_3d_phase`                | `make_figures.fig_3d_phase`               | `sweep_3d.npz`                                           |
 | `fig_snapshots`               | `make_figures.fig_snapshots`              | (live simulation, no npz)                                |
+| `fig_bands_topo`              | `make_figures.fig_bands_topo`             | `bands_topo.npz`                                         |
+| `fig_synthesis`               | `make_synthesis_v2.main`                  | `hysteresis.npz`, `bands.npz`, `diffusion.npz`, `fss_L64.npz` |
+| `fig_topo_k`                  | `make_figures.fig_topo_k`                 | `topo_k_scan.npz`                                        |
+| `fig_orderpdf_k`              | `make_figures.fig_orderpdf_k`             | `orderpdf_k.npz`, `orderpdf.npz`                         |
+| `fig_adaptive_pilot`          | `make_figures_v3.fig_adaptive_pilot`      | `adaptive_perseed.npz`, `adaptive_perseed_ext.npz`       |
+| `fig_robustness`              | `make_figures.fig_robustness`             | `robustness.npz`                                         |
 
 ---
 
@@ -177,13 +190,13 @@ them with
 
 ```python
 import numpy as np
-z = np.load("data/fss_perseed.npz")
+z = np.load("data/fss_L30.warm20000.npz")
 print({k: z[k].shape for k in z.files})
 ```
 
 Per-seed archives use a trailing seed axis: e.g. `phi.shape ==
-(n_alpha, n_L, n_eta, n_seed)` in `fss_perseed.npz`, and similarly for
-`topo_fss.npz`, `robustness.npz`, `adaptive_perseed.npz`, `fss_L64.npz`,
+(n_alpha, n_eta, n_seed)` in the `fss_L*.warm20000.npz` files, and similarly
+for `topo_fss.npz`, `robustness.npz`, `adaptive_perseed.npz`, `fss_L64.npz`,
 `fss_calibrated_v2.npz`. Older archives without a seed axis are kept for
 backwards-compatible figure builders, which now detect both shapes.
 
@@ -199,19 +212,20 @@ time. Most of it is the topological FSS and the slow hysteresis ramp.
 ```bash
 cd src/
 # Phase diagrams (≈30 min total)
-python run_phase.py
 python run_3d_sweep.py
 python run_phasecurve.py
-# FSS metric (≈2 h)
-python run_fss_perseed.py
+python run_gnf.py
+# FSS metric (≈10 h, dominated by the large sizes)
+python run_fss_smallL.py
+python run_fss_L91.py
+python run_fss_L128.py
 python run_fss_L64.py
-python run_fss_standard_vicsek.py
 # Calibration (≈1 h)
 python run_calibrated.py
 python run_calibrated_fss.py
+python run_calibrated_L64.py
+python run_calibrated_anyL.py    # repeat for L = 91, 128
 # Bulk fluid (≈1 h)
-python run_gnf.py
-python run_gnf_L45.py
 python run_correlations.py
 python run_clusters.py
 python run_bands.py
@@ -220,18 +234,23 @@ python run_diffusion.py
 # Hysteresis (≈1 h)
 python run_hysteresis.py
 python run_hysteresis_slow.py
-# Order-parameter PDFs (≈30 min)
+# Order-parameter PDFs and snapshots (≈40 min)
 python run_orderpdf.py
 python run_orderpdf_k.py
-# Topological FSS (≈30 min on 8 cores)
+python run_order_snapshots.py
+# Topological FSS (≈1 h on 8 cores)
 python run_topological.py
+python run_topo_a15_smallL.py
+python run_topo_L64.py
+python run_topo_anyL.py          # repeat for L = 64, 91, 128 at 3 alphas
 python run_topo_k.py
 # Robustness (≈10 min on 8 cores)
 python run_robustness.py
-# Adaptive (≈30 min)
+# Adaptive (≈1 h)
 python run_adaptive_perseed.py
+python run_adaptive_extension.py
 # Then the figures:
-python make_figures.py        # batch builder for the legacy figures
+python make_figures.py        # batch builder for the main + SI figures
 python make_figures_v2.py
 python make_figures_v3.py
 python make_synthesis_v2.py
