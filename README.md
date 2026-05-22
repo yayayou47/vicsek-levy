@@ -64,7 +64,7 @@ pytest tests/
 
 | File | Role |
 |---|---|
-| `vicsek.py`        | Zonal Vicsek–Couzin with α-stable angular noise. Repulsion zone $\mathcal R_i$ ($d<R_r$), alignment annulus $\mathcal A_i$ ($R_r\le d<R_a$), optional blind sector $\beta$. Numba-accelerated cell-list neighbours. |
+| `vicsek.py`        | Zonal Vicsek–Couzin with α-stable angular noise and full $360^\circ$ vision. Repulsion zone $\mathcal R_i$ ($d<R_r$), alignment annulus $\mathcal A_i$ ($R_r\le d<R_a$). Numba-accelerated cell-list neighbours. |
 | `topological.py`   | Same dynamics but alignment over the $k$ topologically nearest visible neighbours via a `cKDTree`. |
 | `noise.py`         | Symmetric α-stable random variates (Chambers–Mallows–Stuck) and the wrapped circular variance $V$ used for noise calibration. |
 | `analysis.py`      | Per-snapshot observables: polarisation $\varphi$, cluster decomposition, density grid. |
@@ -92,7 +92,7 @@ python run_<driver>.py
 | `run_fss_sweep.py`            | `fss_sweep.npz`            | First-pass FSS, four sizes, mean only (legacy).                                       |
 | `run_fss_perseed.py`          | `fss_perseed.npz`          | Per-seed FSS (5 seeds × 4 sizes) — main FSS source.                                   |
 | `run_fss_L64.py`              | `fss_L64.npz`              | Extension to $L=64$ (5 seeds), refined $\eta$ grid.                                   |
-| `run_fss_standard_vicsek.py`  | `fss_standard.npz`         | Sanity check with the canonical Vicsek update ($R_r=0$, no blind sector).             |
+| `run_fss_standard_vicsek.py`  | `fss_standard.npz`         | Sanity check with the canonical single-radius Vicsek update ($R_r=0$).                |
 | **Calibration**               |                            |                                                                                       |
 | `run_calibrated.py`           | `calibrated_sweep.npz`     | $\varphi(V), \chi(V)$ at $L=15$ for the wrapped circular variance $V$.                |
 | `run_calibrated_fss.py`       | `fss_calibrated.npz`,<br>`fss_calibrated_v2.npz` | Multi-$L$ FSS at fixed $V$ (controls for amplitude effects).                          |
@@ -114,7 +114,7 @@ python run_<driver>.py
 | `run_topological.py`          | `topo_fss.npz`             | Mini-FSS, 4 sizes × 2 α × 5 seeds.                                                    |
 | `run_topo_k.py`               | `topo_k_scan.npz`          | $\chi_{\max}(L)$ versus $k$ at $\alpha=1$.                                            |
 | **Robustness**                |                            |                                                                                       |
-| `run_robustness.py`           | `robustness.npz`           | $\varphi(\eta)$ under $v_0,\beta,\sigma$ variations × 5 seeds.                         |
+| `run_robustness.py`           | `robustness.npz`           | $\varphi(\eta)$ under $v_0,\sigma$ variations × 5 seeds.                              |
 | **Adaptive noise**            |                            |                                                                                       |
 | `run_adaptive_perseed.py`     | `adaptive_perseed.npz`     | Density-adaptive $\alpha_i(\rho_{\rm local})$ FSS pilot, 5 seeds.                      |
 | **Movies (not figures)**      |                            |                                                                                       |
@@ -248,9 +248,9 @@ cores.
 - Box: square with periodic boundaries, side $L$, fixed density
   $\sigma = N/L^2 \simeq 2.22$.
 - Speed: $v_0 = 0.05$ throughout, except in the $v_0$ axis of robustness.
-- Repulsion / alignment: $R_r = 0.5$, $R_a = 0.7$ (zonal model);
-  $k = 6$ in the topological model.
-- Blind sector: $\beta = 30^\circ$ by default.
+- Vision: full $360^\circ$ (no blind sector).
+- Repulsion / alignment radii: $R_r = 0.45$, $R_a = 0.7$ (zonal
+  model); $k = 6$ nearest neighbours in the topological model.
 - Time steps: $n_{\rm warm} \in [600, 1500]$ followed by
   $n_{\rm meas} \in [400, 1500]$. Each driver pins its own values at the
   top of `main()`.
