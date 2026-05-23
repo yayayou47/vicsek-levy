@@ -5,7 +5,7 @@
 
 Numerical experiments and figure pipeline for the manuscript
 
-> **Interaction topology controls whether heavy-tailed noise reshapes the Vicsek flocking transition**
+> **Interaction topology, not heavy-tailed noise, controls the Vicsek flocking transition**
 > Yaya Youssouf Yaya & Djibrine Abakar (submitted to *Physical Review E*, 2026)
 
 The Gaussian angular kick of the canonical Vicsek model is replaced by a
@@ -286,8 +286,8 @@ If you use the code or data, please cite
 ```bibtex
 @article{YayaAbakar2026,
   author  = {Yaya Youssouf Yaya and Djibrine Abakar},
-  title   = {Interaction topology controls whether heavy-tailed
-             noise reshapes the Vicsek flocking transition},
+  title   = {Interaction topology, not heavy-tailed noise,
+             controls the {Vicsek} flocking transition},
   journal = {Physical Review E},
   year    = {2026},
   note    = {Submitted}
